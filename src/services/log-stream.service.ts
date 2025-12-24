@@ -67,6 +67,13 @@ export class LogStreamService {
   async startAllStreams() {
       const containers = await this.dockerService.listContainers();
       for (const c of containers) {
+          // Check if this container uses the internal Runner (Sidecar)
+          // If so, we skip Agent-based streaming to avoid duplicate logs.
+          if (c.Labels && c.Labels['hostmachine.runner'] === 'true') {
+              logger.info(`LogStream: Skipping ${c.Names[0]} (Runner active)`);
+              continue;
+          }
+
           // Heuristic: If it has our label or is in our tracked list (simplified: name=serverId)
           // For now, we assume container Name IS the Server ID
           const serverId = c.Names[0].replace('/', '');
