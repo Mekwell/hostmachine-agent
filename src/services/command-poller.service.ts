@@ -5,7 +5,7 @@ import { DockerService } from './docker.service';
 
 interface CommandPayload {
   id: string;
-  type: 'START_SERVER' | 'STOP_SERVER' | 'RESTART_SERVER' | 'UPDATE_AGENT' | 'LIST_FILES' | 'GET_FILE' | 'WRITE_FILE' | 'EXEC_COMMAND' | 'GET_LOGS';
+  type: 'START_SERVER' | 'STOP_SERVER' | 'RESTART_SERVER' | 'UPDATE_AGENT' | 'LIST_FILES' | 'GET_FILE' | 'WRITE_FILE' | 'DELETE_FILE' | 'EXEC_COMMAND' | 'GET_LOGS';
   payload: any;
 }
 
@@ -108,6 +108,21 @@ export class CommandPollerService {
           const targetPath = `/data/${safePath}`;
 
           await this.dockerService.writeFileContent(command.payload.serverId, targetPath, command.payload.content);
+          success = true;
+          break;
+        }
+
+        case 'DELETE_FILE': {
+          const rawPath = command.payload.path || '';
+          const safePath = rawPath.replace(/^\/+/, '').replace(/\.\./g, '');
+          const targetPath = `/data/${safePath}`;
+          
+          // Safety Check: Never delete root /data
+          if (targetPath === '/data' || targetPath === '/data/') {
+              throw new Error('Cannot delete root data directory');
+          }
+
+          await this.dockerService.deleteFile(command.payload.serverId, targetPath);
           success = true;
           break;
         }

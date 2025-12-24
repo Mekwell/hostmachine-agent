@@ -282,4 +282,9 @@ export class DockerService {
       const escaped = content.replace(/"/g, '\\"');
       return await this.execCommand(containerId, ['sh', '-c', `echo "${escaped}" > "${path}"`]);
   }
+
+  async deleteFile(containerId: string, path: string) {
+      logger.info(`Deleting file in ${containerId}: ${path}`);
+      return await this.execCommand(containerId, ['rm', '-rf', path]);
+  }
 }
