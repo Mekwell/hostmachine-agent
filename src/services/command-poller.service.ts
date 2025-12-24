@@ -69,17 +69,22 @@ export class CommandPollerService {
           logger.info(`Command ${command.type} executed successfully.`);
           
           // Notify controller that server is now LIVE
-          try {
-              await axios.patch(`${config.CONTROLLER_URL}/servers/${command.payload.id}`, {
-                  status: 'LIVE'
-              }, {
-                  headers: {
-                      'x-node-id': config.NODE_ID,
-                      'x-api-key': config.API_KEY
-                  }
-              });
-          } catch (e: any) {
-              logger.warn(`Failed to set server LIVE: ${e.message}`);
+          // Ensure we use the correct database server ID from the payload
+          const serverId = command.payload.id || command.payload.serverId;
+          if (serverId) {
+              try {
+                  await axios.patch(`${config.CONTROLLER_URL}/servers/${serverId}`, {
+                      status: 'LIVE'
+                  }, {
+                      headers: {
+                          'x-node-id': config.NODE_ID,
+                          'x-api-key': config.API_KEY
+                      }
+                  });
+                  logger.info(`Server ${serverId} marked as LIVE.`);
+              } catch (e: any) {
+                  logger.warn(`Failed to set server LIVE for ${serverId}: ${e.message} (URL: ${config.CONTROLLER_URL}/servers/${serverId})`);
+              }
           }
 
           resultData = res;
