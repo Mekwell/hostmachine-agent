@@ -18,6 +18,9 @@ export class WatcherService {
         logger.error('HostBot Watcher failed to attach to events:', err);
         return;
       }
+      if (!stream) {
+          return;
+      }
 
       stream.on('data', async (chunk) => {
         try {
