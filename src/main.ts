@@ -4,6 +4,7 @@ import { DockerService } from './services/docker.service';
 import { MonitorService } from './services/monitor.service';
 import { EnrollmentService } from './services/enrollment.service';
 import { CommandPollerService } from './services/command-poller.service';
+import { WatcherService } from './services/watcher.service';
 import axios from 'axios';
 
 const main = async () => {
@@ -18,6 +19,7 @@ const main = async () => {
   const monitorService = new MonitorService();
   const enrollmentService = new EnrollmentService();
   const commandPoller = new CommandPollerService(dockerService);
+  const watcherService = new WatcherService(dockerService);
 
   // --- Step 1: System Introspection (Who am I?) ---
   logger.info('Step 1: Analyzing Host Hardware...');
@@ -59,9 +61,10 @@ const main = async () => {
   logger.info(`Node Enrolled (ID: ${nodeId}).`);
   
   // --- Step 5: Start Command Loop ---
-  logger.info('Step 5: Starting Command Poller...');
+  logger.info('Step 5: Starting Command Poller & HostBot Watcher...');
   commandPoller.setNodeId(nodeId);
   commandPoller.startPolling();
+  watcherService.startWatching();
 
   // --- Step 6: Initial Curated Image Optimization ---
   const prePullImages = async () => {
