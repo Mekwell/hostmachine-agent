@@ -1051,6 +1051,291 @@ function plural(ms, msAbs, n, name) {
 
 /***/ }),
 
+/***/ 2946:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+function __export(m) {
+    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
+}
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+__export(__nccwpck_require__(6386));
+
+
+/***/ }),
+
+/***/ 1724:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+function encodePacket(packet) {
+    const buffer = Buffer.alloc(packet.payload.length + 14);
+    buffer.writeInt32LE(packet.payload.length + 10, 0);
+    buffer.writeInt32LE(packet.id, 4);
+    buffer.writeInt32LE(packet.type, 8);
+    packet.payload.copy(buffer, 12);
+    return buffer;
+}
+exports.encodePacket = encodePacket;
+function decodePacket(buffer) {
+    const length = buffer.readInt32LE(0);
+    const id = buffer.readInt32LE(4);
+    const type = buffer.readInt32LE(8);
+    const payload = buffer.slice(12, length + 2);
+    return {
+        id, type, payload
+    };
+}
+exports.decodePacket = decodePacket;
+var PacketType;
+(function (PacketType) {
+    PacketType[PacketType["Auth"] = 3] = "Auth";
+    PacketType[PacketType["AuthResponse"] = 2] = "AuthResponse";
+    PacketType[PacketType["Command"] = 2] = "Command";
+    PacketType[PacketType["CommandResponse"] = 0] = "CommandResponse";
+})(PacketType = exports.PacketType || (exports.PacketType = {}));
+
+
+/***/ }),
+
+/***/ 3773:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+class PromiseQueue {
+    constructor(maxConcurrent = 1) {
+        this.maxConcurrent = maxConcurrent;
+        this.paused = false;
+        this.queue = [];
+        this.pendingPromiseCount = 0;
+    }
+    async add(promiseGenerator) {
+        return new Promise((resolve, reject) => {
+            this.queue.push({ promiseGenerator, resolve, reject });
+            this.dequeue();
+        });
+    }
+    pause() {
+        this.paused = true;
+    }
+    resume() {
+        this.paused = false;
+        this.dequeue();
+    }
+    async dequeue() {
+        if (this.paused || this.pendingPromiseCount >= this.maxConcurrent)
+            return;
+        const item = this.queue.shift();
+        if (!item)
+            return;
+        this.pendingPromiseCount++;
+        try {
+            const value = await item.promiseGenerator();
+            item.resolve(value);
+        }
+        catch (error) {
+            item.reject(error);
+        }
+        finally {
+            this.pendingPromiseCount--;
+            this.dequeue();
+        }
+    }
+}
+exports.PromiseQueue = PromiseQueue;
+
+
+/***/ }),
+
+/***/ 6386:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const net_1 = __nccwpck_require__(9278);
+const packet_1 = __nccwpck_require__(1724);
+const splitter_1 = __nccwpck_require__(8339);
+const queue_1 = __nccwpck_require__(3773);
+const events_1 = __nccwpck_require__(4434);
+const defaultOptions = {
+    port: 25575,
+    timeout: 2000,
+    maxPending: 1
+};
+class Rcon {
+    constructor(config) {
+        this.callbacks = new Map();
+        this.requestId = 0;
+        this.emitter = new events_1.EventEmitter();
+        this.socket = null;
+        this.authenticated = false;
+        this.on = this.emitter.on.bind(this.emitter);
+        this.once = this.emitter.once.bind(this.emitter);
+        this.off = this.emitter.removeListener.bind(this.emitter);
+        this.config = { ...defaultOptions, ...config };
+        this.sendQueue = new queue_1.PromiseQueue(this.config.maxPending);
+        if (config.maxPending)
+            this.emitter.setMaxListeners(config.maxPending);
+    }
+    static async connect(config) {
+        const rcon = new Rcon(config);
+        await rcon.connect();
+        return rcon;
+    }
+    async connect() {
+        if (this.socket) {
+            throw new Error("Already connected or connecting");
+        }
+        const socket = this.socket = net_1.connect({
+            host: this.config.host,
+            port: this.config.port
+        });
+        try {
+            await new Promise((resolve, reject) => {
+                socket.once("error", reject);
+                socket.on("connect", () => {
+                    socket.off("error", reject);
+                    resolve();
+                });
+            });
+        }
+        catch (error) {
+            this.socket = null;
+            throw error;
+        }
+        socket.setNoDelay(true);
+        socket.on("error", error => this.emitter.emit("error", error));
+        this.emitter.emit("connect");
+        this.socket.on("close", () => {
+            this.emitter.emit("end");
+            this.sendQueue.pause();
+            this.socket = null;
+            this.authenticated = false;
+        });
+        this.socket
+            .pipe(splitter_1.createSplitter())
+            .on("data", this.handlePacket.bind(this));
+        const id = this.requestId;
+        const packet = await this.sendPacket(packet_1.PacketType.Auth, Buffer.from(this.config.password));
+        this.sendQueue.resume();
+        if (packet.id != id || packet.id == -1) {
+            this.sendQueue.pause();
+            this.socket.destroy();
+            this.socket = null;
+            throw new Error("Authentication failed");
+        }
+        this.authenticated = true;
+        this.emitter.emit("authenticated");
+        return this;
+    }
+    /**
+      Close the connection to the server.
+    */
+    async end() {
+        if (!this.socket || this.socket.connecting) {
+            throw new Error("Not connected");
+        }
+        if (!this.socket.writable)
+            throw new Error("End called twice");
+        this.sendQueue.pause();
+        this.socket.end();
+        await new Promise(resolve => this.once("end", resolve));
+    }
+    /**
+      Send a command to the server.
+
+      @param command The command that will be executed on the server.
+      @returns A promise that will be resolved with the command's response from the server.
+    */
+    async send(command) {
+        const payload = await this.sendRaw(Buffer.from(command, "utf-8"));
+        return payload.toString("utf-8");
+    }
+    async sendRaw(buffer) {
+        if (!this.authenticated || !this.socket)
+            throw new Error("Not connected");
+        const packet = await this.sendPacket(packet_1.PacketType.Command, buffer);
+        return packet.payload;
+    }
+    async sendPacket(type, payload) {
+        const id = this.requestId++;
+        const createSendPromise = () => {
+            this.socket.write(packet_1.encodePacket({ id, type, payload }));
+            return new Promise((resolve, reject) => {
+                const onEnd = () => (reject(new Error("Connection closed")), clearTimeout(timeout));
+                this.emitter.on("end", onEnd);
+                const timeout = setTimeout(() => {
+                    this.off("end", onEnd);
+                    reject(new Error(`Timeout for packet id ${id}`));
+                }, this.config.timeout);
+                this.callbacks.set(id, packet => {
+                    this.off("end", onEnd);
+                    clearTimeout(timeout);
+                    resolve(packet);
+                });
+            });
+        };
+        if (type == packet_1.PacketType.Auth) {
+            return createSendPromise();
+        }
+        else {
+            return await this.sendQueue.add(createSendPromise);
+        }
+    }
+    handlePacket(data) {
+        const packet = packet_1.decodePacket(data);
+        const id = this.authenticated ? packet.id : this.requestId - 1;
+        const handler = this.callbacks.get(id);
+        if (handler) {
+            handler(packet);
+            this.callbacks.delete(id);
+        }
+    }
+}
+exports.Rcon = Rcon;
+
+
+/***/ }),
+
+/***/ 8339:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const stream_1 = __nccwpck_require__(2203);
+/**
+  Creates a transform stream which splits / combines the buffer chunks to single messages.
+*/
+function createSplitter() {
+    let transform = new stream_1.Transform();
+    let buffer = Buffer.alloc(0);
+    transform._transform = (chunk, _encoding, callback) => {
+        buffer = Buffer.concat([buffer, chunk]);
+        let offset = 0;
+        while (offset + 4 < buffer.length) {
+            const length = buffer.readInt32LE(offset);
+            if (offset + 4 + length > buffer.length)
+                break;
+            transform.push(buffer.slice(offset, offset + 4 + length));
+            offset += 4 + length;
+        }
+        buffer = buffer.slice(offset);
+        callback();
+    };
+    return transform;
+}
+exports.createSplitter = createSplitter;
+
+
+/***/ }),
+
 /***/ 1450:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -11883,11 +12168,16 @@ var exports = __webpack_exports__;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const socket_io_client_1 = __nccwpck_require__(3588);
 const child_process_1 = __nccwpck_require__(5317);
+const rcon_client_1 = __nccwpck_require__(2946);
 // Environment variables injected by Docker/Agent
 const CONTROLLER_URL = process.env.CONTROLLER_URL || 'http://10.0.0.12:3000'; // Default internal IP
 const SERVER_ID = process.env.SERVER_ID;
 const SERVER_TOKEN = process.env.SERVER_TOKEN; // Security token
 const GAME_COMMAND = process.env.GAME_COMMAND || './start.sh';
+// RCON Config
+const RCON_HOST = '127.0.0.1';
+const RCON_PORT = parseInt(process.env.RCON_PORT || '25575');
+const RCON_PASS = process.env.RCON_PASSWORD;
 if (!SERVER_ID) {
     console.error('CRITICAL: SERVER_ID not set. Aborting.');
     process.exit(1);
@@ -11901,13 +12191,23 @@ const socket = (0, socket_io_client_1.io)(`${CONTROLLER_URL}/console`, {
         type: 'runner'
     }
 });
-socket.on('connect', () => {
-    console.log('[Runner] Connected to Controller.');
-    socket.emit('join-server', SERVER_ID);
-});
-socket.on('disconnect', () => {
-    console.log('[Runner] Disconnected from Controller.');
-});
+let rcon = null;
+const initRcon = async () => {
+    if (!RCON_PASS)
+        return;
+    try {
+        rcon = await rcon_client_1.Rcon.connect({ host: RCON_HOST, port: RCON_PORT, password: RCON_PASS });
+        console.log(`[Runner] RCON Connected on port ${RCON_PORT}`);
+        rcon.on('error', (err) => {
+            console.error('[Runner] RCON Error:', err.message);
+            rcon = null;
+        });
+    }
+    catch (e) {
+        console.warn(`[Runner] RCON Connection failed: ${e.message}. Retrying in 30s...`);
+        setTimeout(initRcon, 30000);
+    }
+};
 // 2. Start Game Process
 const [cmd, ...args] = GAME_COMMAND.split(' ');
 const gameProcess = (0, child_process_1.spawn)(cmd, args, {
@@ -11915,6 +12215,8 @@ const gameProcess = (0, child_process_1.spawn)(cmd, args, {
     shell: true
 });
 console.log(`[Runner] Started game process: ${GAME_COMMAND}`);
+// Start RCON after a short delay to let game boot
+setTimeout(initRcon, 15000);
 // 3. Output Streaming (Game -> Controller)
 const players = new Set();
 const parseLog = (line) => {
@@ -11998,17 +12300,43 @@ gameProcess.stderr.on('data', (data) => {
 gameProcess.on('close', (code) => {
     console.log(`[Runner] Game process exited with code ${code}`);
     socket.emit('log-push', { serverId: SERVER_ID, data: `[System] Server stopped (Code ${code})` });
-    // Decide: Do we exit container or keep runner alive for restart command?
-    // For now, exit to let Docker restart policy handle it, or Agent.
     process.exit(code || 0);
 });
 // 4. Input Streaming (Controller -> Game)
-socket.on('command', (command) => {
+socket.on('command', async (command) => {
     console.log(`[Runner] Received command: ${command}`);
+    // Prefer RCON if available
+    if (rcon) {
+        try {
+            const response = await rcon.send(command);
+            socket.emit('log-push', { serverId: SERVER_ID, data: `[RCON] ${response}` });
+            return;
+        }
+        catch (e) {
+            console.error(`[Runner] RCON command failed: ${e.message}`);
+        }
+    }
+    // Fallback to Stdin
     if (gameProcess.stdin && !gameProcess.stdin.destroyed) {
         gameProcess.stdin.write(command + '\n');
     }
 });
+// 5. Periodic Status Query (Sidecar Intelligence)
+setInterval(async () => {
+    if (rcon) {
+        try {
+            // Get player list via RCON (Game specific)
+            // This is a generic "list" command, works for MC and some others
+            const res = await rcon.send('list');
+            socket.emit('status-update', {
+                serverId: SERVER_ID,
+                players: res,
+                timestamp: Date.now()
+            });
+        }
+        catch (e) { }
+    }
+}, 30000);
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
     console.log('[Runner] Received SIGTERM. Stopping game...');
