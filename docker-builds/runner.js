@@ -11944,6 +11944,45 @@ const parseLog = (line) => {
         players.delete(player);
         socket.emit('player-leave', { serverId: SERVER_ID, player });
     }
+    // Terraria
+    const terrariaJoin = line.match(/: (.+) has joined\./);
+    if (terrariaJoin) {
+        const player = terrariaJoin[1];
+        players.add(player);
+        socket.emit('player-join', { serverId: SERVER_ID, player });
+    }
+    const terrariaLeft = line.match(/: (.+) has left\./);
+    if (terrariaLeft) {
+        const player = terrariaLeft[1];
+        players.delete(player);
+        socket.emit('player-leave', { serverId: SERVER_ID, player });
+    }
+    // Valheim
+    const valheimJoin = line.match(/Got connection from (.+)/);
+    if (valheimJoin) {
+        const player = valheimJoin[1];
+        players.add(player);
+        socket.emit('player-join', { serverId: SERVER_ID, player });
+    }
+    const valheimLeft = line.match(/Closing connection (.+)/);
+    if (valheimLeft) {
+        const player = valheimLeft[1];
+        players.delete(player);
+        socket.emit('player-leave', { serverId: SERVER_ID, player });
+    }
+    // ARK
+    const arkJoin = line.match(/: (.+) joined this ARK!/);
+    if (arkJoin) {
+        const player = arkJoin[1];
+        players.add(player);
+        socket.emit('player-join', { serverId: SERVER_ID, player });
+    }
+    const arkLeft = line.match(/: (.+) left this ARK!/);
+    if (arkLeft) {
+        const player = arkLeft[1];
+        players.delete(player);
+        socket.emit('player-leave', { serverId: SERVER_ID, player });
+    }
 };
 gameProcess.stdout.on('data', (data) => {
     const line = data.toString();
