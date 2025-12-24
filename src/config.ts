@@ -13,7 +13,7 @@ const configSchema = z.object({
   NODE_NAME: z.string().optional(),
   ENROLLMENT_TOKEN: z.string().default('valid-token'), // Hardcoded for prototype
   VPN_IP: z.string().ip().optional(),
-  LOCATION: z.string().default('Australia'),
+  LOCATION: z.string().default('Sydney'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   API_KEY: z.string().optional(), // Loaded from credentials.json
   NODE_ID: z.string().optional(), // Loaded from credentials.json
