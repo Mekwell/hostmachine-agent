@@ -5,6 +5,7 @@ import { MonitorService } from './services/monitor.service';
 import { EnrollmentService } from './services/enrollment.service';
 import { CommandPollerService } from './services/command-poller.service';
 import { WatcherService } from './services/watcher.service';
+import { LogStreamService } from './services/log-stream.service';
 import axios from 'axios';
 
 const main = async () => {
@@ -20,6 +21,7 @@ const main = async () => {
   const enrollmentService = new EnrollmentService();
   const commandPoller = new CommandPollerService(dockerService);
   const watcherService = new WatcherService(dockerService);
+  const logStreamService = new LogStreamService(dockerService);
 
   // --- Step 1: System Introspection (Who am I?) ---
   logger.info('Step 1: Analyzing Host Hardware...');
@@ -65,6 +67,7 @@ const main = async () => {
   commandPoller.setNodeId(nodeId);
   commandPoller.startPolling();
   watcherService.startWatching();
+  logStreamService.startAllStreams();
 
   // --- Step 6: Initial Curated Image Optimization ---
   const prePullImages = async () => {

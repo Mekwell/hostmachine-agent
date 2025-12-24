@@ -23,6 +23,7 @@
     "axios": "^1.13.2",
     "dockerode": "^4.0.9",
     "dotenv": "^16.4.5",
+    "ioredis": "^5.8.2",
     "systeminformation": "^5.27.13",
     "winston": "^3.19.0",
     "zod": "^3.23.0"
