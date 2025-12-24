@@ -76,25 +76,41 @@ export class CommandPollerService {
           success = true;
           break;
 
-        case 'LIST_FILES':
-          resultData = await this.dockerService.listFiles(command.payload.serverId, command.payload.path);
+        case 'LIST_FILES': {
+          const rawPath = command.payload.path || '';
+          // Sanitize: Force relative, remove leading slashes, reject '..'
+          const safePath = rawPath.replace(/^\/+/, '').replace(/\.\./g, '');
+          const targetPath = `/data/${safePath}`;
+          
+          resultData = await this.dockerService.listFiles(command.payload.serverId, targetPath);
           success = true;
           break;
+        }
 
-        case 'GET_FILE':
-          resultData = { content: await this.dockerService.getFileContent(command.payload.serverId, command.payload.path) };
+        case 'GET_FILE': {
+          const rawPath = command.payload.path || '';
+          const safePath = rawPath.replace(/^\/+/, '').replace(/\.\./g, '');
+          const targetPath = `/data/${safePath}`;
+
+          resultData = { content: await this.dockerService.getFileContent(command.payload.serverId, targetPath) };
           success = true;
           break;
+        }
 
         case 'GET_LOGS':
           resultData = { content: await this.dockerService.getContainerLogs(command.payload.serverId) };
           success = true;
           break;
 
-        case 'WRITE_FILE':
-          await this.dockerService.writeFileContent(command.payload.serverId, command.payload.path, command.payload.content);
+        case 'WRITE_FILE': {
+          const rawPath = command.payload.path || '';
+          const safePath = rawPath.replace(/^\/+/, '').replace(/\.\./g, '');
+          const targetPath = `/data/${safePath}`;
+
+          await this.dockerService.writeFileContent(command.payload.serverId, targetPath, command.payload.content);
           success = true;
           break;
+        }
 
         case 'EXEC_COMMAND':
           // Pipe directly to container stdin for real-time interaction
