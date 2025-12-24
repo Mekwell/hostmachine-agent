@@ -1,0 +1,10 @@
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y wget unzip libcurl4 nodejs npm && rm -rf /var/lib/apt/lists/*
+WORKDIR /data
+EXPOSE 7777
+COPY entrypoint.sh /entrypoint.sh
+COPY runner.js /runner.js
+RUN chmod +x /entrypoint.sh
+ENV GAME_COMMAND="/bin/bash /entrypoint.sh"
+LABEL hostmachine.runner="true"
+ENTRYPOINT ["node", "/runner.js"]
