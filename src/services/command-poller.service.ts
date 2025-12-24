@@ -67,6 +67,21 @@ export class CommandPollerService {
         case 'START_SERVER':
           const res = await this.dockerService.createGameServer(command.payload);
           logger.info(`Command ${command.type} executed successfully.`);
+          
+          // Notify controller that server is now LIVE
+          try {
+              await axios.patch(`${config.CONTROLLER_URL}/servers/${command.payload.id}`, {
+                  status: 'LIVE'
+              }, {
+                  headers: {
+                      'x-node-id': config.NODE_ID,
+                      'x-api-key': config.API_KEY
+                  }
+              });
+          } catch (e: any) {
+              logger.warn(`Failed to set server LIVE: ${e.message}`);
+          }
+
           resultData = res;
           success = true;
           break;
