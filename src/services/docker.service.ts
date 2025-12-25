@@ -1,6 +1,6 @@
 import Docker from 'dockerode';
 import logger from '../logger';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -24,6 +24,12 @@ export class DockerService {
 
   private async manageFirewall(port: number, action: 'allow' | 'delete allow') {
     try {
+        if (!['allow', 'delete allow'].includes(action)) {
+           throw new Error('Invalid firewall action');
+        }
+        if (isNaN(port) || port <= 0 || port > 65535) {
+           throw new Error('Invalid port number');
+        }
         logger.info(`Firewall: ${action} on port ${port}`);
         await execAsync(`sudo ufw ${action} ${port}/tcp`);
         await execAsync(`sudo ufw ${action} ${port}/udp`);
@@ -302,8 +308,23 @@ export class DockerService {
   }
 
   async writeFileContent(containerId: string, path: string, content: string) {
-      const escaped = content.replace(/"/g, '\\"');
-      return await this.execCommand(containerId, ['sh', '-c', `echo "${escaped}" > "${path}"`]);
+      return new Promise<void>((resolve, reject) => {
+          // Use docker exec with stdin (-i) to pipe content safely
+          const child = spawn('docker', ['exec', '-i', containerId, 'sh', '-c', `cat > "${path}"`]);
+
+          child.stdin.write(content);
+          child.stdin.end();
+
+          child.on('close', (code) => {
+              if (code === 0) {
+                  resolve();
+              } else {
+                  reject(new Error(`Failed to write file (Exit Code: ${code})`));
+              }
+          });
+          
+          child.on('error', (err) => reject(err));
+      });
   }
 
   async deleteFile(containerId: string, path: string) {
