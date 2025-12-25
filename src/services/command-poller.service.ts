@@ -152,6 +152,11 @@ export class CommandPollerService {
           await this.dockerService.sendCommand(command.payload.serverId, command.payload.command);
           success = true;
           break;
+
+        case 'INJECT_ERROR':
+          await this.dockerService.injectError(command.payload.serverId, command.payload.error);
+          success = true;
+          break;
         
         default:
           logger.warn(`Unknown command type: ${command.type}`);

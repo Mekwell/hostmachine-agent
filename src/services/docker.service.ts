@@ -257,6 +257,12 @@ export class DockerService {
       logger.info(`[Console] Sent command to ${containerId}: ${command}`);
   }
 
+  async injectError(containerId: string, error: string) {
+      logger.info(`[Chaos] Injecting error keyword into ${containerId}: ${error}`);
+      // Write directly to the container's stdout/stderr log stream
+      await this.execCommand(containerId, ['sh', '-c', `echo "${error}"`]);
+  }
+
   async getContainerStats() {
       const containers = await this.docker.listContainers();
       const stats: Record<string, { cpu: number, ram: number, players: any[] }> = {};
