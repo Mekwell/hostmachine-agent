@@ -259,21 +259,38 @@ export class DockerService {
 
   async getContainerStats() {
       const containers = await this.docker.listContainers();
-      const stats: Record<string, { cpu: number, ram: number }> = {};
+      const stats: Record<string, { cpu: number, ram: number, players: any[] }> = {};
       
       for (const c of containers) {
-          const container = this.docker.getContainer(c.Id);
-          const s = await container.stats({ stream: false });
-          
-          // Calculate CPU %
-          const cpuDelta = s.cpu_stats.cpu_usage.total_usage - s.precpu_stats.cpu_usage.total_usage;
-          const systemDelta = s.cpu_stats.system_cpu_usage - s.precpu_stats.system_cpu_usage;
-          const cpuPercent = (cpuDelta / systemDelta) * s.cpu_stats.online_cpus * 100;
+          try {
+              const container = this.docker.getContainer(c.Id);
+              const s = await container.stats({ stream: false });
+              
+              // Calculate CPU %
+              const cpuDelta = s.cpu_stats.cpu_usage.total_usage - s.precpu_stats.cpu_usage.total_usage;
+              const systemDelta = s.cpu_stats.system_cpu_usage - s.precpu_stats.system_cpu_usage;
+              const cpuPercent = (cpuDelta / systemDelta) * s.cpu_stats.online_cpus * 100;
 
-          stats[c.Names[0].replace('/', '')] = {
-              cpu: Math.round(cpuPercent) || 0,
-              ram: Math.round(s.memory_stats.usage / 1024 / 1024) || 0
-          };
+              // Attempt to fetch players from sidecar runner via HTTP (internal)
+              // Sidecar runner listens on port 3001 inside the container
+              let players = [];
+              try {
+                  // We use the container name as ID
+                  const serverId = c.Names[0].replace('/', '');
+                  const playersOutput = await this.execCommand(c.Id, ['curl', '-s', 'http://localhost:3001/players']);
+                  players = JSON.parse(playersOutput as string);
+              } catch (e) {
+                  // Sidecar might not be ready or unsupported for this game
+              }
+
+              stats[c.Names[0].replace('/', '')] = {
+                  cpu: Math.round(cpuPercent) || 0,
+                  ram: Math.round(s.memory_stats.usage / 1024 / 1024) || 0,
+                  players: players || []
+              };
+          } catch (err) {
+              logger.warn(`Failed to fetch stats for ${c.Id}`);
+          }
       }
       return stats;
   }
@@ -286,5 +303,19 @@ export class DockerService {
   async deleteFile(containerId: string, path: string) {
       logger.info(`Deleting file in ${containerId}: ${path}`);
       return await this.execCommand(containerId, ['rm', '-rf', path]);
+  }
+
+  async createArchive(containerId: string, sourcePath: string, archiveName: string) {
+      logger.info(`Creating archive ${archiveName} for ${containerId}`);
+      // Using tar for reliability across linux containers
+      await this.execCommand(containerId, ['tar', '-czf', `/data/${archiveName}`, '-C', sourcePath, '.']);
+      return { path: `/data/${archiveName}` };
+  }
+
+  async extractArchive(containerId: string, archivePath: string, targetPath: string) {
+      logger.info(`Extracting archive ${archivePath} for ${containerId}`);
+      await this.execCommand(containerId, ['mkdir', '-p', targetPath]);
+      await this.execCommand(containerId, ['tar', '-xzf', archivePath, '-C', targetPath]);
+      return { status: 'success' };
   }
 }
