@@ -5,7 +5,7 @@ import { DockerService } from './docker.service';
 
 interface CommandPayload {
   id: string;
-  type: 'START_SERVER' | 'STOP_SERVER' | 'RESTART_SERVER' | 'UPDATE_AGENT' | 'LIST_FILES' | 'GET_FILE' | 'WRITE_FILE' | 'DELETE_FILE' | 'EXEC_COMMAND' | 'GET_LOGS';
+  type: 'START_SERVER' | 'STOP_SERVER' | 'RESTART_SERVER' | 'UPDATE_AGENT' | 'LIST_FILES' | 'GET_FILE' | 'WRITE_FILE' | 'DELETE_FILE' | 'EXEC_COMMAND' | 'GET_LOGS' | 'INJECT_ERROR';
   payload: any;
 }
 
