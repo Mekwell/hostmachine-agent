@@ -71,15 +71,14 @@ export class LogStreamService {
   // Identify all game servers and start streaming
   async startAllStreams() {
       const containers = await this.dockerService.listContainers();
+      logger.info(`LogStream: Evaluating ${containers.length} containers for AI scanning...`);
       for (const c of containers) {
           const serverId = c.Names[0].replace('/', '');
           
-          // New Logic: Always stream for AI Scanning
-          // But only publish to Redis if NO Runner is active
-          const hasRunner = c.Labels && c.Labels['hostmachine.runner'] === 'true';
-          
           if (this.activeStreams.has(c.Id)) continue;
 
+          logger.info(`LogStream: Attaching AI scanner to ${serverId} (${c.Id.substring(0, 12)})`);
+          
           try {
               const container = this.docker.getContainer(c.Id);
               const stream = await container.logs({
@@ -93,22 +92,16 @@ export class LogStreamService {
 
               stream.on('data', (chunk) => {
                   const logLine = chunk.toString('utf8'); 
-                  
-                  // ALWAYS Scan for AI
                   this.watcherService.scanLogsForLiveErrors(c.Id, serverId, logLine);
-
-                  // ONLY Publish to Redis if not handled by Runner
-                  if (!hasRunner) {
-                      this.redis.publish(`logs:${serverId}`, logLine);
-                  }
               });
 
-              stream.on('end', () => {
+              stream.on('error', (err) => {
+                  logger.error(`LogStream error for ${serverId}: ${err.message}`);
                   this.activeStreams.delete(c.Id);
               });
 
           } catch (e: any) {
-              logger.error(`LogStream: Failed to attach to ${c.Id}`, e.message);
+              logger.error(`LogStream: Failed to attach to ${serverId}`, e.message);
           }
       }
   }

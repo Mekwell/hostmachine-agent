@@ -90,6 +90,11 @@ const main = async () => {
 
   logger.info('Agent is Fully Operational.');
   
+  // Refresh Log Streams every 30 seconds for new containers
+  setInterval(() => {
+      logStreamService.startAllStreams();
+  }, 30000);
+
   // --- Step 6: Start Heartbeat ---
   const startHeartbeat = () => {
     setInterval(async () => {
