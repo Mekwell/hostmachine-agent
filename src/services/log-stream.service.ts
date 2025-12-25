@@ -1,5 +1,6 @@
 import Redis from 'ioredis';
 import { DockerService } from './docker.service';
+import { WatcherService } from './watcher.service';
 import { getConfig } from '../config';
 import logger from '../logger';
 import Docker from 'dockerode';
@@ -9,7 +10,7 @@ export class LogStreamService {
   private docker: Docker;
   private activeStreams: Map<string, any> = new Map();
 
-  constructor(private dockerService: DockerService) {
+  constructor(private dockerService: DockerService, private watcherService: WatcherService) {
     this.docker = new Docker();
     const config = getConfig();
     
@@ -49,6 +50,10 @@ export class LogStreamService {
         stream.on('data', (chunk) => {
             // Docker sends header bytes, usually need stripping but raw string might be fine for simple console
             const logLine = chunk.toString('utf8'); 
+            
+            // Proactive AI Scan
+            this.watcherService.scanLogsForLiveErrors(containerId, serverId, logLine);
+
             // Publish to Redis Channel
             this.redis.publish(`logs:${serverId}`, logLine);
         });

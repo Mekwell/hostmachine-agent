@@ -21,7 +21,7 @@ const main = async () => {
   const enrollmentService = new EnrollmentService();
   const commandPoller = new CommandPollerService(dockerService);
   const watcherService = new WatcherService(dockerService);
-  const logStreamService = new LogStreamService(dockerService);
+  const logStreamService = new LogStreamService(dockerService, watcherService);
 
   // --- Step 1: System Introspection (Who am I?) ---
   logger.info('Step 1: Analyzing Host Hardware...');

@@ -35,7 +35,7 @@ export class WatcherService {
 
   private async handleContainerDie(event: any) {
     const containerId = event.id;
-    const containerName = event.Actor.Attributes.name;
+    const containerName = event.Actor.Attributes.name.replace(/^\//, ''); // Clean leading slash
     const exitCode = event.Actor.Attributes.exitCode;
 
     // Ignore clean exits (0) or SIGKILL (137) usually triggered by user stopping server
@@ -47,29 +47,46 @@ export class WatcherService {
     logger.warn(`HostBot Alert: Container ${containerName} died unexpectedly with code ${exitCode}. Generating Report...`);
 
     try {
-        // Fetch logs using DockerService (it has a helper, let's reuse/adapt it)
-        // We need raw access or use the existing helper but ensure it grabs enough context
-        // The existing helper grabs 100 lines. Perfect.
         const logs = await this.dockerService.getContainerLogs(containerId);
-
-        // Send Report
-        const config = getConfig();
-        await axios.post(`${config.CONTROLLER_URL}/ai/report`, {
-            containerId,
-            containerName,
-            logs,
-            exitCode
-        }, {
-            headers: {
-                'x-node-id': config.NODE_ID,
-                'x-api-key': config.API_KEY
-            }
-        });
-
-        logger.info(`HostBot Report sent for ${containerName}`);
-
+        await this.sendReport(containerId, containerName, logs, exitCode);
     } catch (err: any) {
         logger.error(`Failed to report crash for ${containerName}`, err.message);
     }
+  }
+
+  public async scanLogsForLiveErrors(containerId: string, containerName: string, chunk: string) {
+      const criticalPatterns = [
+          'java.lang.outofmemoryerror',
+          'segmentation fault',
+          'no space left on device',
+          'address already in use',
+          'corrupt chunk'
+      ];
+
+      const lowerChunk = chunk.toLowerCase();
+      if (criticalPatterns.some(p => lowerChunk.includes(p))) {
+          logger.warn(`HostBot Live Detection: Found critical error in ${containerName} logs. Reporting...`);
+          await this.sendReport(containerId, containerName, chunk, 'LIVE_DETECTION');
+      }
+  }
+
+  private async sendReport(containerId: string, containerName: string, logs: string, exitCode: string) {
+      const config = getConfig();
+      try {
+          await axios.post(`${config.CONTROLLER_URL}/ai/report`, {
+              containerId,
+              containerName,
+              logs,
+              exitCode
+          }, {
+              headers: {
+                  'x-node-id': config.NODE_ID,
+                  'x-api-key': config.API_KEY
+              }
+          });
+          logger.info(`HostBot Report transmitted for ${containerName}`);
+      } catch (err: any) {
+          logger.error('Failed to transmit HostBot report', err.message);
+      }
   }
 }
