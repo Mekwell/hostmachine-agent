@@ -72,17 +72,44 @@ export class LogStreamService {
   async startAllStreams() {
       const containers = await this.dockerService.listContainers();
       for (const c of containers) {
-          // Check if this container uses the internal Runner (Sidecar)
-          // If so, we skip Agent-based streaming to avoid duplicate logs.
-          if (c.Labels && c.Labels['hostmachine.runner'] === 'true') {
-              logger.info(`LogStream: Skipping ${c.Names[0]} (Runner active)`);
-              continue;
-          }
-
-          // Heuristic: If it has our label or is in our tracked list (simplified: name=serverId)
-          // For now, we assume container Name IS the Server ID
           const serverId = c.Names[0].replace('/', '');
-          this.streamLogs(c.Id, serverId);
+          
+          // New Logic: Always stream for AI Scanning
+          // But only publish to Redis if NO Runner is active
+          const hasRunner = c.Labels && c.Labels['hostmachine.runner'] === 'true';
+          
+          if (this.activeStreams.has(c.Id)) continue;
+
+          try {
+              const container = this.docker.getContainer(c.Id);
+              const stream = await container.logs({
+                  follow: true,
+                  stdout: true,
+                  stderr: true,
+                  tail: 10
+              });
+
+              this.activeStreams.set(c.Id, stream);
+
+              stream.on('data', (chunk) => {
+                  const logLine = chunk.toString('utf8'); 
+                  
+                  // ALWAYS Scan for AI
+                  this.watcherService.scanLogsForLiveErrors(c.Id, serverId, logLine);
+
+                  // ONLY Publish to Redis if not handled by Runner
+                  if (!hasRunner) {
+                      this.redis.publish(`logs:${serverId}`, logLine);
+                  }
+              });
+
+              stream.on('end', () => {
+                  this.activeStreams.delete(c.Id);
+              });
+
+          } catch (e: any) {
+              logger.error(`LogStream: Failed to attach to ${c.Id}`, e.message);
+          }
       }
   }
 }
