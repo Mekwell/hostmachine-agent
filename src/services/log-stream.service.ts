@@ -92,7 +92,10 @@ export class LogStreamService {
 
               stream.on('data', (chunk) => {
                   const logLine = chunk.toString('utf8'); 
+                  // Proactive AI Scan
                   this.watcherService.scanLogsForLiveErrors(c.Id, serverId, logLine);
+                  // Publish to Redis for Live Console
+                  this.redis.publish(`logs:${serverId}`, logLine);
               });
 
               stream.on('error', (err) => {
