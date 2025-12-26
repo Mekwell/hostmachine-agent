@@ -1,10 +1,10 @@
 #!/bin/bash
 # HostMachine Valheim Core Entrypoint
 export HOME=/home/steam
-export LD_LIBRARY_PATH=/data/linux64:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/home/steam/steamcmd/linux64:$LD_LIBRARY_PATH
 
 echo ">>> Synchronizing Valheim via SteamCMD..."
-/home/steam/steamcmd/steamcmd.sh +@sSteamCmdForcePlatformType linux +force_install_dir /data +login anonymous +app_update 896660 validate +quit
+/home/steam/steamcmd/steamcmd.sh +@sSteamCmdForcePlatformType linux +@NoPromptForPassword 1 +force_install_dir /data +login anonymous +app_update 896660 validate +quit
 
 # Defensive defaults
 S_NAME=${SERVER_NAME:-"HostMachine Valheim"}
@@ -13,6 +13,12 @@ S_PASS=${PASSWORD:-""}
 
 if [ ! -f /data/valheim_server.x86_64 ]; then
     echo "!!! CRITICAL: Valheim binary not found after sync !!!"
+    # Try a second time without validate if it failed
+    /home/steam/steamcmd/steamcmd.sh +@sSteamCmdForcePlatformType linux +@NoPromptForPassword 1 +force_install_dir /data +login anonymous +app_update 896660 +quit
+fi
+
+if [ ! -f /data/valheim_server.x86_64 ]; then
+    echo "!!! CRITICAL: Valheim binary STILL not found after second attempt. Exiting. !!!"
     exit 1
 fi
 
