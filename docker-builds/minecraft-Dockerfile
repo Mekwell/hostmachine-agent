@@ -1,8 +1,8 @@
 FROM eclipse-temurin:21-jre-alpine
 RUN apk add --no-cache bash curl nodejs npm
 WORKDIR /data
-EXPOSE 25565
-COPY entrypoint.sh /entrypoint.sh
+EXPOSE 25565/tcp
+COPY minecraft-entrypoint.sh /entrypoint.sh
 COPY runner.js /runner.js
 RUN chmod +x /entrypoint.sh
 ENV GAME_COMMAND="/bin/bash /entrypoint.sh"
