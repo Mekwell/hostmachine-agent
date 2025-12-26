@@ -180,7 +180,7 @@ export class DockerService {
                     `${hostDataDir}:/home/linuxgsm/serverfiles`
                 ],
                 Memory: config.memoryLimitMb * 1024 * 1024,
-                PidsLimit: 500,
+                PidsLimit: 2000,
             },
             ExposedPorts: {
                 [`${config.internalPort}/tcp`]: {},
