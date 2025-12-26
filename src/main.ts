@@ -25,8 +25,45 @@ const main = async () => {
   const logStreamService = new LogStreamService(dockerService, watcherService);
   const statsStreamService = new StatsStreamService(dockerService);
 
-  // ... (Hardware analyze, Docker health, Baseline resources) ...
+  // --- Step 1: System Introspection (Who am I?) ---
+  logger.info('Step 1: Analyzing Host Hardware...');
+  try {
+    const specs = await monitorService.getSpecs();
+    logger.info(`Host Detected: ${specs.hostname} (${specs.osPlatform})`);
+    logger.info(`Specs: ${specs.cpuCores} Cores | ${specs.totalMemoryMb} MB RAM | ${specs.totalDiskGb} GB Disk`);
+  } catch (err) {
+    logger.error('CRITICAL: Failed to analyze host hardware.', err);
+    process.exit(1);
+  }
 
+  // --- Step 2: Docker Health Check ---
+  logger.info('Step 2: Connecting to Docker Daemon...');
+  const dockerHealth = await dockerService.getHealth();
+
+  if (dockerHealth.status === 'ok') {
+      logger.info(`Docker Daemon Connected! Version: ${dockerHealth.version}`);
+      const containers = await dockerService.listContainers();
+      logger.info(`Found ${containers.length} active containers.`);
+  } else {
+      logger.error('CRITICAL: Docker Daemon is not reachable.', dockerHealth.error);
+  }
+
+  // --- Step 3: Initial Resource Check ---
+  logger.info('Step 3: Checking Baseline Resources...');
+  const usage = await monitorService.getUsage();
+  logger.info(`Current Load: CPU ${usage.cpuLoad}% | RAM Used ${usage.memoryUsedMb} MB | Disk Used ${usage.diskUsedGb} GB`);
+
+  // --- Step 4: Enrollment / Handshake ---
+  logger.info('Step 4: Contacting Fleet Controller...');
+  const nodeId = await enrollmentService.enrollIfNeeded();
+
+  if (!nodeId) {
+    logger.error('CRITICAL: Failed to enroll with Controller. Retrying in 30 seconds...');
+    process.exit(1);
+  }
+
+  logger.info(`Node Enrolled (ID: ${nodeId}).`);
+  
   // --- Step 5: Start Command Loop ---
   logger.info('Step 5: Starting Command Poller & HostBot Watcher...');
   commandPoller.setNodeId(nodeId);
