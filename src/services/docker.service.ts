@@ -146,6 +146,19 @@ export class DockerService {
     }
 
     try {
+        // --- SAFETY REMOVAL ---
+        try {
+            const existing = this.docker.getContainer(config.serverId);
+            const info = await existing.inspect();
+            if (info) {
+                logger.info(`Cleaning up existing container ${config.serverId} before recreation...`);
+                if (info.State.Running) await existing.stop();
+                await existing.remove();
+            }
+        } catch (e) {
+            // Container doesn't exist, proceed normally
+        }
+
         const bindIp = config.bindIp || '0.0.0.0';
         const finalEnv = [
             ...config.env,
