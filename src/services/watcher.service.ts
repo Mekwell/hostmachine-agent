@@ -55,6 +55,7 @@ export class WatcherService {
 
     let logs = 'Could not retrieve logs.';
     try {
+        // Capture the last 100 lines for context
         logs = await this.dockerService.getContainerLogs(containerId);
     } catch (err: any) {
         logger.error(`Failed to fetch logs for crashed container ${containerName}: ${err.message}`);

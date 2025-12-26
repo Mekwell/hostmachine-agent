@@ -92,7 +92,19 @@ export class CommandPollerService {
           break;
 
         case 'STOP_SERVER':
-          await this.dockerService.stopContainer(command.payload.containerId);
+          await this.dockerService.stopContainer(command.payload.containerId || command.payload.serverId);
+          success = true;
+          break;
+
+        case 'RESTART_SERVER':
+          logger.info(`Restarting server ${command.payload.serverId}...`);
+          try {
+              await this.dockerService.stopContainer(command.payload.serverId);
+          } catch (e) {
+              // Ignore if container already stopped
+          }
+          const restartRes = await this.dockerService.createGameServer(command.payload);
+          resultData = restartRes;
           success = true;
           break;
 
