@@ -147,10 +147,15 @@ export class DockerService {
 
     try {
         const bindIp = config.bindIp || '0.0.0.0';
+        const finalEnv = [
+            ...config.env,
+            `SERVER_ID=${config.serverId}`
+        ];
+
         const container = await this.docker.createContainer({
             Image: config.image,
             name: config.serverId,
-            Env: config.env,
+            Env: finalEnv,
             HostConfig: {
                 PortBindings: {
                     [`${config.internalPort}/tcp`]: [{ HostPort: String(config.port), HostIp: bindIp }],
