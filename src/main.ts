@@ -116,7 +116,7 @@ const main = async () => {
         } catch (error: any) {
             logger.warn('Heartbeat failed:', error.message);
         }
-    }, 10000); // Every 10 seconds
+    }, 60000); // Reduced to 60s to prevent Controller overload
   };
 
   startHeartbeat();
