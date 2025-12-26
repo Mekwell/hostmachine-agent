@@ -25,6 +25,7 @@ export class WatcherService {
       stream.on('data', async (chunk) => {
         try {
           const event = JSON.parse(chunk.toString());
+          logger.debug(`Docker Event: ${event.Action} for ${event.id || 'N/A'}`);
           await this.handleContainerDie(event);
         } catch (e) {
           logger.warn('Failed to parse Docker event', e);
@@ -34,9 +35,15 @@ export class WatcherService {
   }
 
   private async handleContainerDie(event: any) {
-    const containerId = event.id;
-    const containerName = event.Actor.Attributes.name.replace(/^\//, ''); // Clean leading slash
-    const exitCode = event.Actor.Attributes.exitCode;
+    const containerId = event.id || event.ID; // Handle potential case differences
+    const attributes = event.Actor?.Attributes || {};
+    const containerName = (attributes.name || 'unknown').replace(/^\//, ''); 
+    const exitCode = attributes.exitCode;
+
+    if (!containerId) {
+        logger.warn(`Die event received without ID: ${JSON.stringify(event)}`);
+        return;
+    }
 
     // Ignore clean exits (0) or SIGKILL (137) usually triggered by user stopping server
     if (exitCode === '0' || exitCode === '137' || exitCode === '143') {
@@ -46,11 +53,17 @@ export class WatcherService {
 
     logger.warn(`HostBot Alert: Container ${containerName} died unexpectedly with code ${exitCode}. Generating Report...`);
 
+    let logs = 'Could not retrieve logs.';
     try {
-        const logs = await this.dockerService.getContainerLogs(containerId);
+        logs = await this.dockerService.getContainerLogs(containerId);
+    } catch (err: any) {
+        logger.error(`Failed to fetch logs for crashed container ${containerName}: ${err.message}`);
+    }
+
+    try {
         await this.sendReport(containerId, containerName, logs, exitCode);
     } catch (err: any) {
-        logger.error(`Failed to report crash for ${containerName}`, err.message);
+        logger.error(`Failed to transmit crash report for ${containerName}: ${err.message}`);
     }
   }
 
