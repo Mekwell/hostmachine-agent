@@ -4,7 +4,7 @@ export HOME=/home/steam
 export LD_LIBRARY_PATH=/home/steam/steamcmd/linux64:$LD_LIBRARY_PATH
 
 echo ">>> Synchronizing Valheim via SteamCMD..."
-/home/steam/steamcmd/steamcmd.sh +@sSteamCmdForcePlatformType linux +@NoPromptForPassword 1 +force_install_dir /data +login anonymous +app_update 896660 validate +quit
+/home/steam/steamcmd/steamcmd.sh +@sSteamCmdForcePlatformType linux +@NoPromptForPassword 1 +login anonymous +force_install_dir /data +app_update 896660 validate +quit
 
 # Defensive defaults
 S_NAME=${SERVER_NAME:-"HostMachine Valheim"}
