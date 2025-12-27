@@ -3,17 +3,20 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Enable i386 and install WineHQ
-RUN dpkg --add-architecture i386 && \
-    apt-get update && \
+# Install dependencies and standard Wine
+RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    curl ca-certificates software-properties-common gnupg2 && \
-    mkdir -pm755 /etc/apt/keyrings && \
-    curl -sL https://dl.winehq.org/wine-builds/winehq.key -o /etc/apt/keyrings/winehq-archive.key && \
-    curl -sL https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources -o /etc/apt/sources.list.d/winehq-jammy.sources && \
-    apt-get update && \
-    apt-get install -y --install-recommends winehq-stable xvfb lib32gcc-s1 nodejs npm libsdl2-2.0-0 procps && \
-    rm -rf /var/lib/apt/lists/*
+    curl \
+    ca-certificates \
+    wine64 \
+    wine \
+    xvfb \
+    lib32gcc-s1 \
+    nodejs \
+    npm \
+    libsdl2-2.0-0 \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create steam user
 RUN groupadd -g 1000 steam && \
