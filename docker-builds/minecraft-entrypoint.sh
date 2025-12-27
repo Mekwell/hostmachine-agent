@@ -1,16 +1,14 @@
 #!/bin/bash
-if [ ! -f server.jar ]; then
-    echo ">>> Downloading PaperMC LATEST..."
-    curl -o server.jar https://api.papermc.io/v2/projects/paper/versions/1.21.1/builds/131/downloads/paper-1.21.1-131.jar
-fi
-if [ ! -f eula.txt ]; then
-    echo "eula=true" > eula.txt
-fi
+set -e
 
-# Defensive variable handling
-if [[ ! $MEMORY =~ ^[0-9]+$ ]]; then
-    MEMORY=2048
-fi
+# HostMachine Minecraft Entrypoint
+echo ">>> Initializing Minecraft Grid Module..."
+echo ">>> Type: ${TYPE:-PAPER}"
+echo ">>> Version: ${VERSION:-LATEST}"
 
-echo ">>> Starting Minecraft Server with ${MEMORY}M RAM..."
-exec java -Xms${MEMORY}M -Xmx${MEMORY}M -XX:+UseG1GC -jar server.jar nogui --port 25565
+# The itzg image uses its own entrypoint logic, 
+# we just need to ensure the environment is ready.
+# Persistence is handled by the Docker volume /data
+
+# Start the actual itzg entrypoint
+exec /start

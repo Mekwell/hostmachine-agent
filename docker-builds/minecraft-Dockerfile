@@ -1,10 +1,19 @@
-FROM eclipse-temurin:21-jre-alpine
-RUN apk add --no-cache bash curl nodejs npm
-WORKDIR /data
-EXPOSE 25565/tcp
-COPY --chmod=755 minecraft-entrypoint.sh /entrypoint.sh
-COPY runner.js /runner.js
-USER steam
-ENV GAME_COMMAND="bash /entrypoint.sh"
-LABEL hostmachine.runner="true"
-ENTRYPOINT ["node", "/runner.js"]
+# HostMachine Minecraft (Universal Modded)
+# Support for Java, Forge, Fabric, Quilt, Paper, etc.
+FROM itzg/minecraft-server:latest
+
+# Environment defaults
+ENV EULA=TRUE \
+    TYPE=PAPER \
+    MEMORY=2G \
+    VERSION=LATEST \
+    ENABLE_RCON=true \
+    RCON_PASSWORD=hostmachine \
+    RCON_PORT=25575 \
+    ONLINE_MODE=TRUE
+
+# Port exposure
+EXPOSE 25565 25575
+
+# Data persistence is handled via volume mounts by the Agent
+# The 'itzg' image uses /data as the main directory
