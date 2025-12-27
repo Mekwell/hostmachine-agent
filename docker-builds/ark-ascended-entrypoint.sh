@@ -1,8 +1,8 @@
 #!/bin/bash
 # Fixed ARK: Ascended entrypoint with binary checks and Windows force-type
 echo ">>> Synchronizing ARK: Ascended via SteamCMD (App 2430930)..."
-# Force windows to get the actual server binary (since ASA is win-native only right now)
-/home/steam/steamcmd/steamcmd.sh +@sSteamCmdForcePlatformType windows +force_install_dir /data +login anonymous +app_update 2430930 validate +quit
+# The platform type must be the FIRST argument usually or set before update
+/home/steam/steamcmd/steamcmd.sh +@sSteamCmdForcePlatformType windows +login anonymous +force_install_dir /data +app_update 2430930 validate +quit
 
 BIN_PATH="/data/ShooterGame/Binaries/Win64/ArkAscendedServer.exe"
 
