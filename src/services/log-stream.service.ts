@@ -23,7 +23,12 @@ export class LogStreamService {
         host: redisHost, 
         port: 6379,
         password: process.env.REDIS_PASSWORD || undefined,
-        lazyConnect: true
+        lazyConnect: true,
+        retryStrategy: (times) => Math.min(times * 100, 3000),
+    });
+
+    this.redis.on('error', (err) => {
+        logger.debug(`LogStream: Redis error: ${err.message}`);
     });
     
     this.redis.connect().catch(e => {

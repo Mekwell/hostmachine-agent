@@ -4,6 +4,7 @@ import axios from 'axios';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import Docker from 'dockerode';
+import { getNetstatCommand, isWindows } from '../utils/system';
 
 const execAsync = promisify(exec);
 const docker = new Docker();
@@ -55,7 +56,8 @@ export class MonitorService {
       const load = await si.currentLoad();
       const mem = await si.mem();
       const disk = await si.fsSize();
-      const rootDisk = disk.find(d => d.mount === '/') || disk[0];
+      const rootPath = isWindows ? 'C:' : '/';
+      const rootDisk = disk.find(d => d.mount === rootPath) || disk[0];
       const publicIp = await this.getPublicIp();
       const vpnIp = await this.getVpnIp();
       
@@ -66,11 +68,23 @@ export class MonitorService {
 
       // Get all listening UDP/TCP ports on the host
       try {
-          const { stdout: netstat } = await execAsync("sudo ss -tuln | awk '{print $5}' | grep -oE '[0-9]+'$");
-          netstat.split('\n').forEach(p => {
-              const port = parseInt(p.trim());
-              if (port) activePorts.push(port);
-          });
+          const cmd = getNetstatCommand();
+          const { stdout: netstat } = await execAsync(cmd);
+          
+          if (isWindows) {
+              // Windows netstat -ano output: "  TCP    0.0.0.0:80             0.0.0.0:0              LISTENING       1234"
+              const lines = netstat.split('\n');
+              for (const line of lines) {
+                  const match = line.match(/:(\d+)\s+\S+\s+LISTENING/);
+                  if (match) activePorts.push(parseInt(match[1]));
+              }
+          } else {
+              // Linux ss output
+              netstat.split('\n').forEach(p => {
+                  const portMatch = p.match(/:(\d+)\s*$/);
+                  if (portMatch) activePorts.push(parseInt(portMatch[1]));
+              });
+          }
       } catch (e) {
           logger.warn('Failed to fetch netstat data');
       }
@@ -115,7 +129,8 @@ export class MonitorService {
       const mem = await si.mem();
       const os = await si.osInfo();
       const disk = await si.fsSize();
-      const rootDisk = disk.find(d => d.mount === '/') || disk[0];
+      const rootPath = isWindows ? 'C:' : '/';
+      const rootDisk = disk.find(d => d.mount === rootPath) || disk[0];
 
       return {
         cpuCores: cpu.physicalCores,

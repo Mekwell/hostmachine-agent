@@ -1,0 +1,32 @@
+# HostMachine ARK: Survival Ascended Windows Core
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+
+# Set shell to PowerShell for easier setup
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+# Install SteamCMD
+WORKDIR C:/steamcmd
+RUN Invoke-WebRequest -Uri "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_win32.zip" -OutFile "steamcmd.zip"; \
+    Expand-Archive -Path "steamcmd.zip" -DestinationPath "C:/steamcmd"; \
+    Remove-Item "steamcmd.zip"
+
+# Create data directory
+RUN New-Item -Path "C:/data" -ItemType Directory
+
+# Copy entrypoint and runner
+COPY ark-ascended-windows-entrypoint.ps1 C:/entrypoint.ps1
+# We'll need a Windows-compiled version of the runner or use node directly
+RUN Invoke-WebRequest -Uri "https://nodejs.org/dist/v20.11.0/node-v20.11.0-x64.msi" -OutFile "node.msi"; \
+    Start-Process msiexec.exe -ArgumentList '/i', 'node.msi', '/quiet', '/norestart' -Wait; \
+    Remove-Item "node.msi"
+
+COPY runner.js C:/runner.js
+
+# ASA requires some VC++ redistributables - Server Core usually needs these manually injected or installed
+# For now, we assume the host provides necessary libs via volume or we install them here
+
+EXPOSE 7777/udp 27015/udp
+
+# Standard HostMachine Sidecar Command
+ENV GAME_COMMAND="powershell.exe -File C:/entrypoint.ps1"
+ENTRYPOINT ["node", "C:/runner.js"]

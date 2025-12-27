@@ -4,13 +4,14 @@ import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import { paths, getFirewallCommand, getCopyCommand, isWindows } from '../utils/system';
 
 const execAsync = promisify(exec);
 
 export class DockerService {
   private docker: Docker;
-  private readonly SERVERS_ROOT = '/opt/hostmachine/servers';
-  private readonly CACHE_ROOT = '/opt/hostmachine/cache';
+  private readonly SERVERS_ROOT = paths.serversRoot;
+  private readonly CACHE_ROOT = paths.cacheRoot;
 
   constructor() {
     this.docker = new Docker();
@@ -31,8 +32,8 @@ export class DockerService {
            throw new Error('Invalid port number');
         }
         logger.info(`Firewall: ${action} on port ${port}`);
-        await execAsync(`sudo ufw ${action} ${port}/tcp`);
-        await execAsync(`sudo ufw ${action} ${port}/udp`);
+        const cmd = getFirewallCommand(port, action);
+        await execAsync(cmd);
     } catch (err: any) {
         logger.warn(`Firewall command failed: ${err.message}.`);
     }
@@ -69,8 +70,8 @@ export class DockerService {
       if (fs.existsSync(cachePath)) {
           logger.info(`[Preload] Found cache for ${gameType}. Seeding ${targetDir}...`);
           try {
-              // Note: Using a robust copy command
-              await execAsync(`cp -r ${cachePath}/* ${targetDir}/`);
+              const cmd = getCopyCommand(cachePath, targetDir);
+              await execAsync(cmd);
               logger.info(`[Preload] Seeding complete for ${gameType}`);
           } catch (e: any) {
               logger.warn(`[Preload] Seeding failed: ${e.message}. Fallback to container download.`);
@@ -82,7 +83,7 @@ export class DockerService {
 
   async installMod(serverId: string, mod: any) {
       const serverDataDir = path.join(this.SERVERS_ROOT, serverId, 'data');
-      const targetDir = path.join(serverDataDir, mod.installPath.replace(/^\//, '')); 
+      const targetDir = path.join(serverDataDir, mod.installPath.replace(/^\//, '').replace(/\//g, path.sep)); 
       
       if (!fs.existsSync(targetDir)) {
           fs.mkdirSync(targetDir, { recursive: true });
@@ -94,7 +95,12 @@ export class DockerService {
       logger.info(`[Mod] Installing ${mod.name} to ${filePath}`);
       
       try {
-          await execAsync(`wget -q -O "${filePath}" "${mod.downloadUrl}"`);
+          if (isWindows) {
+              // PowerShell alternative for wget
+              await execAsync(`powershell.exe -Command "Invoke-WebRequest -Uri '${mod.downloadUrl}' -OutFile '${filePath}'"`);
+          } else {
+              await execAsync(`wget -q -O "${filePath}" "${mod.downloadUrl}"`);
+          }
           logger.info(`[Mod] Download complete: ${mod.name}`);
       } catch (err: any) {
           logger.error(`[Mod] Failed to download ${mod.name}: ${err.message}`);
@@ -129,7 +135,9 @@ export class DockerService {
     const hostDataDir = path.join(this.SERVERS_ROOT, config.serverId, 'data');
     if (!fs.existsSync(hostDataDir)) {
         fs.mkdirSync(hostDataDir, { recursive: true });
-        await execAsync(`chmod -R 777 ${hostDataDir}`); 
+        if (!isWindows) {
+            await execAsync(`chmod -R 777 ${hostDataDir}`); 
+        }
         
         // Trigger Preload if available
         const gameId = config.image.split(':').shift()?.split('/').pop()?.replace('game-', '');
@@ -192,16 +200,18 @@ export class DockerService {
         logger.info(`Server ${config.serverId} started.`);
 
         // Force Install Hook (Safe for all images, runs silently)
-        setTimeout(async () => {
-            try {
-                const exec = await container.exec({ 
-                    Cmd: ['/bin/bash', '-c', 'if [ -f ./terrariaserver ]; then ./terrariaserver install; fi'], 
-                    AttachStdout: false, 
-                    AttachStderr: false
-                });
-                await exec.start({});
-            } catch (e) {}
-        }, 5000);
+        if (!isWindows) {
+            setTimeout(async () => {
+                try {
+                    const exec = await container.exec({ 
+                        Cmd: ['/bin/bash', '-c', 'if [ -f ./terrariaserver ]; then ./terrariaserver install; fi'], 
+                        AttachStdout: false, 
+                        AttachStderr: false
+                    });
+                    await exec.start({});
+                } catch (e) {}
+            }, 5000);
+        }
 
         await this.manageFirewall(config.port, 'allow');
 

@@ -14,7 +14,12 @@ export class StatsStreamService {
     this.redis = new Redis({
         host: redisHost, 
         port: 6379,
-        lazyConnect: true
+        lazyConnect: true,
+        retryStrategy: (times) => Math.min(times * 50, 2000), // Aggressive retry for telemetry
+    });
+
+    this.redis.on('error', (err) => {
+        logger.debug(`StatsStream: Redis error: ${err.message}`);
     });
     
     this.redis.connect().catch(e => {
