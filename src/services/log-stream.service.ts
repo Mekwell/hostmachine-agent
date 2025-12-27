@@ -76,7 +76,7 @@ export class LogStreamService {
   // Identify all game servers and start streaming
   async startAllStreams() {
       const containers = await this.dockerService.listContainers();
-      logger.info(`LogStream: Evaluating ${containers.length} containers for AI scanning...`);
+      logger.debug(`LogStream: Evaluating ${containers.length} containers for AI scanning...`);
       for (const c of containers) {
           const serverId = c.Names[0].replace('/', '');
           
