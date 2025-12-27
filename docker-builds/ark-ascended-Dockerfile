@@ -1,16 +1,41 @@
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y lib32gcc-s1 curl ca-certificates nodejs npm libsdl2-2.0-0 && rm -rf /var/lib/apt/lists/*
-RUN useradd -m steam
-RUN mkdir -p /home/steam/steamcmd /data /home/steam/.steam/sdk64 && \
+# HostMachine ARK: Survival Ascended (Wine Core)
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Enable i386 and install WineHQ
+RUN dpkg --add-architecture i386 && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl ca-certificates software-properties-common gnupg2 && \
+    mkdir -pm755 /etc/apt/keyrings && \
+    curl -sL https://dl.winehq.org/wine-builds/winehq.key -o /etc/apt/keyrings/winehq-archive.key && \
+    curl -sL https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources -o /etc/apt/sources.list.d/winehq-jammy.sources && \
+    apt-get update && \
+    apt-get install -y --install-recommends winehq-stable xvfb lib32gcc-s1 nodejs npm libsdl2-2.0-0 procps && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create steam user
+RUN groupadd -g 1000 steam && \
+    useradd -u 1000 -g steam -m steam
+
+# Setup directories
+RUN mkdir -p /home/steam/steamcmd /data && \
     chown -R steam:steam /home/steam /data
-WORKDIR /home/steam
+
 USER steam
-RUN cd /home/steam/steamcmd && curl -sL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xvz
+WORKDIR /home/steam
+
+# Download SteamCMD
+RUN cd /home/steam/steamcmd && \
+    curl -sL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xvz
+
 WORKDIR /data
-EXPOSE 7777/udp 7778/udp 27015/udp
+
 COPY --chmod=755 ark-ascended-entrypoint.sh /entrypoint.sh
 COPY runner.js /runner.js
-USER steam
+
+EXPOSE 7777/udp 27015/udp
+
 ENV GAME_COMMAND="bash /entrypoint.sh"
-LABEL hostmachine.runner="true"
 ENTRYPOINT ["node", "/runner.js"]
