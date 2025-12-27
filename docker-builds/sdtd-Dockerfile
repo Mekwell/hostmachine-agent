@@ -8,11 +8,9 @@ USER steam
 RUN cd /home/steam/steamcmd && curl -sL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xvz
 WORKDIR /data
 EXPOSE 26900/tcp 26900/udp 26901/udp 26902/udp
-COPY sdtd-entrypoint.sh /entrypoint.sh
+COPY --chmod=755 sdtd-entrypoint.sh /entrypoint.sh
 COPY runner.js /runner.js
-USER root
-RUN chmod +x /entrypoint.sh
 USER steam
-ENV GAME_COMMAND="/bin/bash /entrypoint.sh"
+ENV GAME_COMMAND="bash /entrypoint.sh"
 LABEL hostmachine.runner="true"
 ENTRYPOINT ["node", "/runner.js"]

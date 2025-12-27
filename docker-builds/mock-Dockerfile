@@ -1,9 +1,8 @@
 FROM node:20-alpine
 WORKDIR /app
+COPY --chmod=755 mock-game.sh /entrypoint.sh
 COPY runner.js /runner.js
-COPY mock-game.sh /mock-game.sh
-RUN chmod +x /mock-game.sh
-RUN apk add --no-cache bash
-ENV GAME_COMMAND="/bin/bash /mock-game.sh"
+USER steam
+ENV GAME_COMMAND="bash /entrypoint.sh"
 LABEL hostmachine.runner="true"
 ENTRYPOINT ["node", "/runner.js"]
