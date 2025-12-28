@@ -5,7 +5,7 @@ import { DockerService } from './docker.service';
 
 interface CommandPayload {
   id: string;
-  type: 'START_SERVER' | 'STOP_SERVER' | 'RESTART_SERVER' | 'UPDATE_AGENT' | 'LIST_FILES' | 'GET_FILE' | 'WRITE_FILE' | 'DELETE_FILE' | 'EXEC_COMMAND' | 'GET_LOGS' | 'INJECT_ERROR';
+  type: 'START_SERVER' | 'STOP_SERVER' | 'RESTART_SERVER' | 'UPDATE_AGENT' | 'LIST_FILES' | 'GET_FILE' | 'WRITE_FILE' | 'DELETE_FILE' | 'EXEC_COMMAND' | 'GET_LOGS' | 'INJECT_ERROR' | 'INSTALL_MODPACK' | 'WAKE_SERVER';
   payload: any;
 }
 
@@ -173,6 +173,18 @@ export class CommandPollerService {
 
         case 'INJECT_ERROR':
           await this.dockerService.injectError(command.payload.serverId, command.payload.error);
+          success = true;
+          break;
+
+        case 'WAKE_SERVER':
+          // Simply start the existing container
+          await new (require('dockerode'))().getContainer(command.payload.serverId).start();
+          success = true;
+          break;
+
+        case 'INSTALL_MODPACK':
+          // Logic: Download, extract to /mods, reboot
+          await (this.dockerService as any).installModpack(command.payload.serverId, command.payload);
           success = true;
           break;
         

@@ -366,6 +366,30 @@ export class DockerService {
       return await this.execCommand(containerId, ['rm', '-rf', path]);
   }
 
+  async installModpack(serverId: string, config: { downloadUrl: string, packName: string }) {
+      const serverDataDir = path.join(this.SERVERS_ROOT, serverId, 'data');
+      const modsDir = path.join(serverDataDir, 'mods');
+      if (!fs.existsSync(modsDir)) fs.mkdirSync(modsDir, { recursive: true });
+
+      const tempZip = path.join(serverDataDir, 'modpack_temp.zip');
+      logger.info(`[Modpack] Downloading ${config.packName} to ${tempZip}`);
+
+      try {
+          if (isWindows) {
+              await execAsync(`powershell.exe -Command "Invoke-WebRequest -Uri '${config.downloadUrl}' -OutFile '${tempZip}'"`);
+              await execAsync(`powershell.exe -Command "Expand-Archive -Path '${tempZip}' -DestinationPath '${modsDir}' -Force"`);
+          } else {
+              await execAsync(`wget -q -O "${tempZip}" "${config.downloadUrl}"`);
+              await execAsync(`unzip -o "${tempZip}" -d "${modsDir}"`);
+          }
+          fs.unlinkSync(tempZip);
+          logger.info(`[Modpack] ${config.packName} installed successfully.`);
+      } catch (err: any) {
+          logger.error(`[Modpack] Installation failed: ${err.message}`);
+          throw err;
+      }
+  }
+
   async createArchive(containerId: string, sourcePath: string, archiveName: string) {
       logger.info(`Creating archive ${archiveName} for ${containerId}`);
       // Using tar for reliability across linux containers
