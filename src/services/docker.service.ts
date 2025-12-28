@@ -5,16 +5,19 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import { paths, getFirewallCommand, getCopyCommand, isWindows } from '../utils/system';
+import { PreflightService } from './preflight.service';
 
 const execAsync = promisify(exec);
 
 export class DockerService {
   private docker: Docker;
+  private preflight: PreflightService;
   private readonly SERVERS_ROOT = paths.serversRoot;
   private readonly CACHE_ROOT = paths.cacheRoot;
 
   constructor() {
     this.docker = new Docker();
+    this.preflight = new PreflightService();
     if (!fs.existsSync(this.SERVERS_ROOT)) {
         fs.mkdirSync(this.SERVERS_ROOT, { recursive: true });
     }
@@ -168,9 +171,12 @@ export class DockerService {
         }
 
         const bindIp = config.bindIp || '0.0.0.0';
+        const jvmArgs = this.preflight.calculateJvmArgs(config.mods?.length || 0, config.memoryLimitMb);
+        
         const finalEnv = [
             ...config.env,
-            `SERVER_ID=${config.serverId}`
+            `SERVER_ID=${config.serverId}`,
+            `JVM_FLAGS=${jvmArgs.join(' ')}`
         ];
 
         const container = await this.docker.createContainer({
