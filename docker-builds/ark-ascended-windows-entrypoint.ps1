@@ -1,26 +1,40 @@
-# HostMachine ARK: Survival Ascended Windows Entrypoint
-$ServerName = $env:SERVER_NAME -ifnot $env:SERVER_NAME -then "HostMachine ASA Windows"
-$Password = $env:PASSWORD
-$AdminPassword = $env:ADMIN_PASSWORD -ifnot $env:ADMIN_PASSWORD -then "adminsecret"
+# Fixed ARK: Ascended entrypoint for Windows Docker
+$SteamCmd = "C:\steamcmd\steamcmd.exe"
 
-Write-Host ">>> Synchronizing ARK: Ascended via SteamCMD (Windows)..."
-& C:\steamcmd\steamcmd.exe +force_install_dir C:\data +login anonymous +app_update 2430930 validate +quit
+Write-Host ">>> Ensuring SteamCMD is up to date..."
+Start-Process $SteamCmd -ArgumentList "+quit" -Wait
+
+Write-Host ">>> Synchronizing ARK: Ascended via SteamCMD (App 2430930)..."
+
+# Create script file
+$SyncScript = @"
+force_install_dir C:\data
+login anonymous
+app_set_config 2430930 modbranch public
+app_update 2430930 validate
+quit
+"@
+$SyncScript | Out-File -FilePath C:\sync_script.txt -Encoding ascii
+
+# Run synchronization
+Start-Process $SteamCmd -ArgumentList "+runscript C:\sync_script.txt" -Wait
 
 $BinPath = "C:\data\ShooterGame\Binaries\Win64\ArkAscendedServer.exe"
 
 if (-not (Test-Path $BinPath)) {
-    Write-Error "!!! CRITICAL: ARK: Ascended binary NOT FOUND at $BinPath !!!"
+    Write-Host "!!! CRITICAL: ARK: Ascended binary NOT FOUND at $BinPath !!!"
     exit 1
 }
 
-Set-Location "C:\data\ShooterGame\Binaries\Win64"
+Write-Host ">>> ARK: Ascended binary synchronization COMPLETE."
+Write-Host ">>> Starting ARK: Ascended Native Server..."
 
-$QueryStr = "TheIsland_WP?listen?SessionName=$ServerName"
-if ($Password) {
-    $QueryStr += "?ServerPassword=$Password"
-}
-$QueryStr += "?ServerAdminPassword=$AdminPassword"
+$Map = if ($env:MAP) { $env:MAP } else { "TheIsland_WP" }
+$ServerName = if ($env:SERVER_NAME) { $env:SERVER_NAME } else { "HostMachine ASA Server" }
+$AdminPassword = if ($env:ADMIN_PASSWORD) { $env:ADMIN_PASSWORD } else { "admin123" }
+$MaxPlayers = if ($env:MAX_PLAYERS) { $env:MAX_PLAYERS } else { 70 }
 
-Write-Host ">>> Starting ARK: Ascended ($ServerName)..."
-# Start process and wait (exec equivalent in PS is usually direct call or Start-Process -Wait)
-& .\ArkAscendedServer.exe "$QueryStr" -server -log -Port=7777 -QueryPort=27015
+$Args = "$Map?listen?SessionName=$ServerName?ServerPassword=$AdminPassword?ServerAdminPassword=$AdminPassword -WinLiveMaxPlayers=$MaxPlayers -NoBattlEye -server -log -baseport=7777"
+
+# Start the game server
+Start-Process $BinPath -ArgumentList $Args -NoNewWindow -Wait
