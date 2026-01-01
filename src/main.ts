@@ -45,13 +45,20 @@ const main = async () => {
       const containers = await dockerService.listContainers();
       logger.info(`Found ${containers.length} active containers.`);
   } else {
-      logger.error('CRITICAL: Docker Daemon is not reachable.', dockerHealth.error);
+      logger.warn('WARNING: Docker Daemon is not reachable. Container features will be disabled.');
   }
 
   // --- Step 3: Initial Resource Check ---
   logger.info('Step 3: Checking Baseline Resources...');
-  const usage = await monitorService.getUsage();
-  logger.info(`Current Load: CPU ${usage.cpuLoad}% | RAM Used ${usage.memoryUsedMb} MB | Disk Used ${usage.diskUsedGb} GB`);
+  let usage;
+  try {
+      usage = await monitorService.getUsage();
+      logger.info(`Current Load: CPU ${usage.cpuLoad}% | RAM Used ${usage.memoryUsedMb} MB | Disk Used ${usage.diskUsedGb} GB`);
+  } catch (err: any) {
+      logger.error('Failed to retrieve system usage, but continuing...', err.message);
+      // Mock usage for enrollment
+      usage = { cpuLoad: 0, memoryUsedMb: 0, memoryFreeMb: 0, diskUsedGb: 0 };
+  }
 
   // --- Step 4: Enrollment / Handshake ---
   logger.info('Step 4: Contacting Fleet Controller...');

@@ -38,6 +38,13 @@ MAX_PLAYERS=${MAX_PLAYERS:-70}
 
 # Launch using wine via Xvfb
 echo ">>> Starting ARK: Ascended (HostMachine ASA) via Wine Staging + Xvfb..."
+
+# Configure Wine environment
+echo ">>> Configuring Wine prefix..."
+winetricks -q win10
+# Note: vcrun2022 often helps with missing api-ms-win-core DLLs
+# winetricks -q vcrun2022 
+
 xvfb-run --auto-servernum --server-args='-screen 0 1024x768x16' \
 /opt/wine-staging/bin/wine "$BIN_PATH" "$MAP?listen?SessionName=$SERVER_NAME?ServerPassword=$ADMIN_PASSWORD?ServerAdminPassword=$ADMIN_PASSWORD" \
     -WinLiveMaxPlayers=$MAX_PLAYERS \

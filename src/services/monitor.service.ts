@@ -62,50 +62,55 @@ export class MonitorService {
       const vpnIp = await this.getVpnIp();
       
       // 1. Get all running containers and their port mappings
-      const containers = await docker.listContainers();
       const containerStates: Record<string, 'RUNNING' | 'LIVE' | 'STARTING'> = {};
       const activePorts: number[] = [];
 
-      // Get all listening UDP/TCP ports on the host
       try {
-          const cmd = getNetstatCommand();
-          const { stdout: netstat } = await execAsync(cmd);
+          const containers = await docker.listContainers();
           
-          if (isWindows) {
-              // Windows netstat -ano output: "  TCP    0.0.0.0:80             0.0.0.0:0              LISTENING       1234"
-              const lines = netstat.split('\n');
-              for (const line of lines) {
-                  const match = line.match(/:(\d+)\s+\S+\s+LISTENING/);
-                  if (match) activePorts.push(parseInt(match[1]));
+          // Get all listening UDP/TCP ports on the host
+          try {
+              const cmd = getNetstatCommand();
+              const { stdout: netstat } = await execAsync(cmd);
+              
+              if (isWindows) {
+                  // Windows netstat -ano output: "  TCP    0.0.0.0:80             0.0.0.0:0              LISTENING       1234"
+                  const lines = netstat.split('\n');
+                  for (const line of lines) {
+                      const match = line.match(/:(\d+)\s+\S+\s+LISTENING/);
+                      if (match) activePorts.push(parseInt(match[1]));
+                  }
+              } else {
+                  // Linux ss output
+                  netstat.split('\n').forEach(p => {
+                      const portMatch = p.match(/:(\d+)\s*$/);
+                      if (portMatch) activePorts.push(parseInt(portMatch[1]));
+                  });
               }
-          } else {
-              // Linux ss output
-              netstat.split('\n').forEach(p => {
-                  const portMatch = p.match(/:(\d+)\s*$/);
-                  if (portMatch) activePorts.push(parseInt(portMatch[1]));
-              });
+          } catch (e) {
+              logger.warn('Failed to fetch netstat data');
           }
-      } catch (e) {
-          logger.warn('Failed to fetch netstat data');
-      }
 
-      for (const c of containers) {
-          const name = c.Names[0].replace('/', '');
-          // Default to STARTING (Container is up, but engine might not be)
-          containerStates[name] = 'STARTING';
+          for (const c of containers) {
+              const name = c.Names[0].replace('/', '');
+              // Default to STARTING (Container is up, but engine might not be)
+              containerStates[name] = 'STARTING';
 
-          // Check if any of the mapped public ports are actually listening in netstat
-          const hasListeningPort = c.Ports.some(p => activePorts.includes(p.PublicPort));
-          
-          if (hasListeningPort) {
-              containerStates[name] = 'LIVE';
-          } else {
-              // If container has been up for more than 5 minutes and no port, mark as RUNNING (Generic)
-              const uptimeSeconds = (Date.now() / 1000) - c.Created;
-              if (uptimeSeconds > 300) {
-                  containerStates[name] = 'RUNNING';
+              // Check if any of the mapped public ports are actually listening in netstat
+              const hasListeningPort = c.Ports.some(p => activePorts.includes(p.PublicPort));
+              
+              if (hasListeningPort) {
+                  containerStates[name] = 'LIVE';
+              } else {
+                  // If container has been up for more than 5 minutes and no port, mark as RUNNING (Generic)
+                  const uptimeSeconds = (Date.now() / 1000) - c.Created;
+                  if (uptimeSeconds > 300) {
+                      containerStates[name] = 'RUNNING';
+                  }
               }
           }
+      } catch (dockerErr) {
+          logger.debug('Docker not reachable during monitor scan.');
       }
 
       return {
