@@ -47,5 +47,10 @@ COPY runner.js /runner.js
 
 EXPOSE 7777/udp 27015/udp
 
+USER root
+RUN chmod +x /entrypoint.sh
+USER steam
+
+ENV PATH="/opt/wine-staging/bin:${PATH}"
 ENV GAME_COMMAND="bash /entrypoint.sh"
 ENTRYPOINT ["node", "/runner.js"]

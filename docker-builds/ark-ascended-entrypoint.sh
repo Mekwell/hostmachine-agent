@@ -36,10 +36,10 @@ SERVER_NAME=${SERVER_NAME:-"HostMachine ASA Server"}
 ADMIN_PASSWORD=${ADMIN_PASSWORD:-"admin123"}
 MAX_PLAYERS=${MAX_PLAYERS:-70}
 
-# Launch using wine64 via Xvfb
-echo ">>> Starting ARK: Ascended (HostMachine ASA) via Wine64 + Xvfb..."
+# Launch using wine via Xvfb
+echo ">>> Starting ARK: Ascended (HostMachine ASA) via Wine Staging + Xvfb..."
 xvfb-run --auto-servernum --server-args='-screen 0 1024x768x16' \
-wine64 "$BIN_PATH" "$MAP?listen?SessionName=$SERVER_NAME?ServerPassword=$ADMIN_PASSWORD?ServerAdminPassword=$ADMIN_PASSWORD" \
+/opt/wine-staging/bin/wine "$BIN_PATH" "$MAP?listen?SessionName=$SERVER_NAME?ServerPassword=$ADMIN_PASSWORD?ServerAdminPassword=$ADMIN_PASSWORD" \
     -WinLiveMaxPlayers=$MAX_PLAYERS \
     -NoBattlEye \
     -server \
