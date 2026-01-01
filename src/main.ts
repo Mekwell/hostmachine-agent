@@ -76,7 +76,11 @@ const main = async () => {
   const prePullImages = async () => {
       logger.info('Starting curated image synchronization...');
       try {
-          const response = await axios.get(`${config.CONTROLLER_URL}/games`);
+          const response = await axios.get(`${config.CONTROLLER_URL}/games`, {
+              headers: {
+                  'x-internal-secret': process.env.INTERNAL_API_SECRET || 'insecure-secret'
+              }
+          });
           const games = response.data;
           for (const game of games) {
               logger.info(`Pre-pulling optimization: ${game.dockerImage}`);
