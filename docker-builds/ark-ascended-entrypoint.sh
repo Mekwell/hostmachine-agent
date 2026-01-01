@@ -36,6 +36,13 @@ SERVER_NAME=${SERVER_NAME:-"HostMachine ASA Server"}
 ADMIN_PASSWORD=${ADMIN_PASSWORD:-"admin123"}
 MAX_PLAYERS=${MAX_PLAYERS:-70}
 
-# Launch using wine64
-# We use -noxvfb if the binary doesn't need it, otherwise we wrap in xvfb-run
-wine64 "$BIN_PATH" "$MAP?listen?SessionName=$SERVER_NAME?ServerPassword=$ADMIN_PASSWORD?ServerAdminPassword=$ADMIN_PASSWORD" -WinLiveMaxPlayers=$MAX_PLAYERS -NoBattlEye -noxvfb -baseport=7777
+# Launch using wine64 via Xvfb
+echo ">>> Starting ARK: Ascended (HostMachine ASA) via Wine64 + Xvfb..."
+xvfb-run --auto-servernum --server-args='-screen 0 1024x768x16' \
+wine64 "$BIN_PATH" "$MAP?listen?SessionName=$SERVER_NAME?ServerPassword=$ADMIN_PASSWORD?ServerAdminPassword=$ADMIN_PASSWORD" \
+    -WinLiveMaxPlayers=$MAX_PLAYERS \
+    -NoBattlEye \
+    -server \
+    -log \
+    -noxvfb \
+    -baseport=7777
