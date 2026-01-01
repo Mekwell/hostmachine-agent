@@ -19,8 +19,8 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # Create steam user
-RUN groupadd -g 1000 steam && \
-    useradd -u 1000 -g steam -m steam
+RUN groupadd -g 1001 steam && \
+    useradd -u 1001 -g steam -m steam
 
 # Setup directories
 RUN mkdir -p /home/steam/steamcmd /data && \

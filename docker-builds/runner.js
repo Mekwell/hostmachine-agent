@@ -12170,7 +12170,7 @@ const socket_io_client_1 = __nccwpck_require__(3588);
 const child_process_1 = __nccwpck_require__(5317);
 const rcon_client_1 = __nccwpck_require__(2946);
 // Environment variables injected by Docker/Agent
-const CONTROLLER_URL = process.env.CONTROLLER_URL || 'http://10.0.0.12:3000'; // Default internal IP
+const CONTROLLER_URL = process.env.CONTROLLER_URL || 'http://192.168.30.20:3000'; // Default internal IP
 const SERVER_ID = process.env.SERVER_ID;
 const SERVER_TOKEN = process.env.SERVER_TOKEN; // Security token
 const GAME_COMMAND = process.env.GAME_COMMAND || './start.sh';
