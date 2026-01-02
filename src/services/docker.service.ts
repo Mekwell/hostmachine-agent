@@ -186,6 +186,13 @@ export class DockerService {
             Image: config.image,
             name: config.serverId,
             Env: finalEnv,
+            Healthcheck: {
+                Test: ["CMD-SHELL", "ls /data || exit 1"],
+                Interval: 60000000000, // 60s
+                Timeout: 30000000000, // 30s
+                Retries: 3,
+                StartPeriod: 300000000000 // 5m (Allow 5 mins for SteamCMD/VC++)
+            },
             HostConfig: {
                 PortBindings: {
                     [`${config.internalPort}/tcp`]: [{ HostPort: String(config.port), HostIp: bindIp }],
