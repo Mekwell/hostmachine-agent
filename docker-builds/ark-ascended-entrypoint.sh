@@ -3,22 +3,13 @@
 STEAMCMD="/home/steam/steamcmd/steamcmd.sh"
 
 echo ">>> Ensuring SteamCMD is up to date..."
+rm -rf /home/steam/Steam/appcache /home/steam/Steam/depotcache
 $STEAMCMD +quit
 
 echo ">>> Synchronizing ARK: Ascended via SteamCMD (App 2430930)..."
 
-# Create script file
-cat << 'EOF' > /tmp/ark_sync.txt
-@sSteamCmdForcePlatformType windows
-force_install_dir /data
-login anonymous
-app_info_update 1
-app_update 2430930 validate
-quit
-EOF
-
-# Run script
-$STEAMCMD +runscript /tmp/ark_sync.txt
+# Direct execution
+$STEAMCMD +@sSteamCmdForcePlatformType windows +force_install_dir /data +login anonymous +app_update 2430930 validate +quit
 
 BIN_PATH="/data/ShooterGame/Binaries/Win64/ArkAscendedServer.exe"
 

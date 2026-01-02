@@ -12209,12 +12209,43 @@ const initRcon = async () => {
     }
 };
 // 2. Start Game Process
-const [cmd, ...args] = GAME_COMMAND.split(' ');
-const gameProcess = (0, child_process_1.spawn)(cmd, args, {
-    stdio: ['pipe', 'pipe', 'pipe'],
-    shell: true
-});
-console.log(`[Runner] Started game process: ${GAME_COMMAND}`);
+let gameProcess;
+let isStopping = false;
+const startGame = () => {
+    if (isStopping)
+        return;
+    const [cmd, ...args] = GAME_COMMAND.split(' ');
+    gameProcess = (0, child_process_1.spawn)(cmd, args, {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: true
+    });
+    console.log(`[Runner] Started game process: ${GAME_COMMAND}`);
+    gameProcess.stdout.on('data', (data) => {
+        const line = data.toString();
+        process.stdout.write(line);
+        parseLog(line);
+        socket.emit('log-push', { serverId: SERVER_ID, data: line });
+    });
+    gameProcess.stderr.on('data', (data) => {
+        const line = data.toString();
+        process.stderr.write(line);
+        socket.emit('log-push', { serverId: SERVER_ID, data: line });
+    });
+    gameProcess.on('close', (code) => {
+        console.log(`[Runner] Game process exited with code ${code}`);
+        socket.emit('log-push', { serverId: SERVER_ID, data: `[System] Server process exited (Code ${code})` });
+        if (!isStopping && code !== 0 && code !== 137) { // 137 is SIGKILL (OOM)
+            console.log('[Runner] Crash detected. Restarting in 10 seconds...');
+            socket.emit('log-push', { serverId: SERVER_ID, data: `[System] Crash detected. Restarting in 10s...` });
+            setTimeout(startGame, 10000);
+        }
+        else {
+            console.log('[Runner] Clean exit or shutdown requested. Exiting container.');
+            process.exit(code || 0);
+        }
+    });
+};
+startGame();
 // Start RCON after a short delay to let game boot
 setTimeout(initRcon, 15000);
 // 3. Output Streaming (Game -> Controller)
@@ -12286,22 +12317,6 @@ const parseLog = (line) => {
         socket.emit('player-leave', { serverId: SERVER_ID, player });
     }
 };
-gameProcess.stdout.on('data', (data) => {
-    const line = data.toString();
-    process.stdout.write(line); // Keep local logs too
-    parseLog(line);
-    socket.emit('log-push', { serverId: SERVER_ID, data: line });
-});
-gameProcess.stderr.on('data', (data) => {
-    const line = data.toString();
-    process.stderr.write(line);
-    socket.emit('log-push', { serverId: SERVER_ID, data: line });
-});
-gameProcess.on('close', (code) => {
-    console.log(`[Runner] Game process exited with code ${code}`);
-    socket.emit('log-push', { serverId: SERVER_ID, data: `[System] Server stopped (Code ${code})` });
-    process.exit(code || 0);
-});
 // 4. Input Streaming (Controller -> Game)
 socket.on('command', async (command) => {
     console.log(`[Runner] Received command: ${command}`);
@@ -12317,7 +12332,7 @@ socket.on('command', async (command) => {
         }
     }
     // Fallback to Stdin
-    if (gameProcess.stdin && !gameProcess.stdin.destroyed) {
+    if (gameProcess && gameProcess.stdin && !gameProcess.stdin.destroyed) {
         gameProcess.stdin.write(command + '\n');
     }
 });
@@ -12340,7 +12355,9 @@ setInterval(async () => {
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
     console.log('[Runner] Received SIGTERM. Stopping game...');
-    gameProcess.kill('SIGTERM');
+    isStopping = true;
+    if (gameProcess)
+        gameProcess.kill('SIGTERM');
 });
 
 })();
