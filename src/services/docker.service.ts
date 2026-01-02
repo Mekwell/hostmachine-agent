@@ -120,6 +120,7 @@ export class DockerService {
     env: string[];
     mods?: any[];
     bindIp?: string;
+    forceRecreate?: boolean;
   }) {
     logger.info(`Creating Game Server ${config.serverId} on port ${config.port} (Bind: ${config.bindIp || '0.0.0.0'})`);
 
@@ -164,30 +165,17 @@ export class DockerService {
             const info = await existingContainer.inspect();
             
             if (info.State.Running) {
-                logger.info(`Container ${config.serverId} is running. Stopping for restart...`);
-                await existingContainer.stop();
-                await existingContainer.remove(); // Force recreation on restart to apply new env/image updates
-                existingContainer = null;
+                if (config.forceRecreate) {
+                    logger.info(`Container ${config.serverId} is running. Stopping for RESTART...`);
+                    await existingContainer.stop();
+                    await existingContainer.remove(); 
+                    existingContainer = null;
+                } else {
+                    logger.info(`Container ${config.serverId} is already running. Skipping start logic.`);
+                    return { id: existingContainer.id, alreadyRunning: true };
+                }
             } else {
                 logger.info(`Found stopped container ${config.serverId}. Attempting to start...`);
-                // Optional: Check if image needs update here? For now, we assume simple start.
-                // If the user wants to FORCE update, they should use Restart, which we handle above if running.
-                // But wait, if it's stopped, we should probably just start it to be fast.
-                // However, if config changed (env vars), we MUST recreate.
-                // Docker doesn't let you update Env vars of existing container easily.
-                // So for correctness, we should usually recreate.
-                // BUT user specifically asked: "once the container is made, it cant get deleted."
-                
-                // COMPROMISE: If we are just "Starting" a stopped server, try to start it.
-                // If it fails or if we need to apply new config, we're stuck.
-                // Let's stick to RECREATION for now as it ensures config consistency, 
-                // but we will implement the "Stop" command to NOT remove it.
-                
-                // Actually, the user's request "if you stop the server it only stops the server inside"
-                // implies they want the container to remain Up but the process to die.
-                // That is handled by runner.js now.
-                
-                // If the container is stopped (Exited), we can just start it.
                 await existingContainer.start();
                 logger.info(`Resumed existing container ${config.serverId}.`);
                 
@@ -202,6 +190,11 @@ export class DockerService {
             }
         } catch (e) {
             // Container doesn't exist or error inspecting, proceed to create
+        }
+
+        if (existingContainer) {
+            // If we reached here and container exists, it was stopped and we already started it or handled it.
+            // But just in case, we continue to create if existingContainer was set to null.
         }
 
         const bindIp = config.bindIp || '0.0.0.0';

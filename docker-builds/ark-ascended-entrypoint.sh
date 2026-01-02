@@ -6,12 +6,15 @@ echo ">>> Ensuring SteamCMD is up to date..."
 rm -rf /home/steam/Steam/appcache /home/steam/Steam/depotcache
 $STEAMCMD +quit
 
-echo ">>> Synchronizing ARK: Ascended via SteamCMD (App 2430930)..."
-
-# Direct execution
-$STEAMCMD +@sSteamCmdForcePlatformType windows +force_install_dir /data +login anonymous +app_update 2430930 validate +quit
-
 BIN_PATH="/data/ShooterGame/Binaries/Win64/ArkAscendedServer.exe"
+
+if [ -f "$BIN_PATH" ] && [ "${ALWAYS_UPDATE}" != "true" ]; then
+    echo ">>> ASA Binary found. Skipping SteamCMD sync for faster boot."
+else
+    echo ">>> Synchronizing ARK: Ascended via SteamCMD (App 2430930)..."
+    # Direct execution
+    $STEAMCMD +@sSteamCmdForcePlatformType windows +force_install_dir /data +login anonymous +app_update 2430930 validate +quit
+fi
 
 if [ ! -f "$BIN_PATH" ]; then
     echo "!!! CRITICAL: ARK: Ascended binary NOT FOUND at $BIN_PATH !!!"

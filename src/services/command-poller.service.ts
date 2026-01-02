@@ -65,7 +65,7 @@ export class CommandPollerService {
     try {
       switch (command.type) {
         case 'START_SERVER':
-          const res = await this.dockerService.createGameServer(command.payload);
+          const res = await this.dockerService.createGameServer({ ...command.payload, forceRecreate: false });
           logger.info(`Command ${command.type} executed successfully.`);
           
           // Notify controller that server is now LIVE
@@ -93,23 +93,12 @@ export class CommandPollerService {
 
         case 'STOP_SERVER':
           await this.dockerService.stopContainer(command.payload.containerId || command.payload.serverId);
-          try {
-              const container = new (require('dockerode'))().getContainer(command.payload.containerId || command.payload.serverId);
-              await container.remove();
-          } catch (e) {}
           success = true;
           break;
 
         case 'RESTART_SERVER':
           logger.info(`Restarting server ${command.payload.serverId}...`);
-          try {
-              await this.dockerService.stopContainer(command.payload.serverId);
-              const container = new (require('dockerode'))().getContainer(command.payload.serverId);
-              await container.remove();
-          } catch (e) {
-              // Ignore if container doesn't exist
-          }
-          const restartRes = await this.dockerService.createGameServer(command.payload);
+          const restartRes = await this.dockerService.createGameServer({ ...command.payload, forceRecreate: true });
           resultData = restartRes;
           success = true;
           break;
