@@ -34,6 +34,9 @@ RUN dpkg --add-architecture i386 && \
     libfontconfig1 \
     libasound2 \
     winetricks \
+    cabextract \
+    dbus \
+    winbind \
     && rm -rf /var/lib/apt/lists/*
 
 # Create steam user
@@ -64,4 +67,5 @@ USER steam
 
 ENV PATH="/opt/wine-staging/bin:${PATH}"
 ENV GAME_COMMAND="bash /entrypoint.sh"
+ENV WINEDEBUG="-all"
 ENTRYPOINT ["node", "/runner.js"]
