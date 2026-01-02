@@ -36,25 +36,39 @@ echo ">>> Starting ARK: Ascended (HostMachine ASA) via Wine Staging + Xvfb..."
 
 # Configure Wine environment
 export WINEPREFIX=/home/steam/.wine
+export WINEARCH=win64
+export WINEDEBUG=-all
+export WINEDLLOVERRIDES="mscoree,mshtml="
+export DISPLAY=:99
+
 echo ">>> Configuring Wine prefix..."
+
+# Cleanup old Xvfb locks
+rm -f /tmp/.X99-lock
 
 if [ ! -f "/home/steam/.wine/vcrun2022_installed" ]; then
     echo ">>> First boot: Installing Visual C++ 2022 Runtime..."
+    # Start Xvfb in background
+    Xvfb :99 -screen 0 1024x768x16 &
+    XVFB_PID=$!
+    sleep 2
+    
     # Initialize prefix first
-    xvfb-run wineboot --init
+    wineboot --init
     # Install VC++ 2022
-    xvfb-run winetricks -q -f vcrun2022
+    winetricks -q -f vcrun2022
+    
+    # Kill Xvfb
+    kill $XVFB_PID
+    rm -f /tmp/.X99-lock
+    
     touch "/home/steam/.wine/vcrun2022_installed"
     echo ">>> Visual C++ 2022 installed."
 else
     echo ">>> Visual C++ 2022 already installed."
 fi
 
-# Suppress Wine debug output (fixme/err spam)
-# Also disable mscoree and mshtml to prevent "Application tried to create a window" errors in headless mode
-export WINEDEBUG=-all
-export WINEDLLOVERRIDES="mscoree,mshtml="
-
+# Final launch with Xvfb wrapper
 xvfb-run --auto-servernum --server-args='-screen 0 1024x768x16' \
 /usr/bin/env WINEDEBUG=-all /opt/wine-staging/bin/wine "$BIN_PATH" "$MAP?listen?SessionName=$SERVER_NAME?ServerPassword=$ADMIN_PASSWORD?ServerAdminPassword=$ADMIN_PASSWORD?Port=$GAME_PORT?QueryPort=$QUERY_PORT?RCONPort=$RCON_PORT?RCONEnabled=True" \
     -WinLiveMaxPlayers=$MAX_PLAYERS \
