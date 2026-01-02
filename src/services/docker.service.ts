@@ -179,6 +179,9 @@ export class DockerService {
             `JVM_FLAGS=${jvmArgs.join(' ')}`
         ];
 
+        const queryPort = config.port + 1;
+        const rconPort = config.port + 2;
+
         const container = await this.docker.createContainer({
             Image: config.image,
             name: config.serverId,
@@ -186,7 +189,9 @@ export class DockerService {
             HostConfig: {
                 PortBindings: {
                     [`${config.internalPort}/tcp`]: [{ HostPort: String(config.port), HostIp: bindIp }],
-                    [`${config.internalPort}/udp`]: [{ HostPort: String(config.port), HostIp: bindIp }]
+                    [`${config.internalPort}/udp`]: [{ HostPort: String(config.port), HostIp: bindIp }],
+                    [`27015/udp`]: [{ HostPort: String(queryPort), HostIp: bindIp }],
+                    [`27020/tcp`]: [{ HostPort: String(rconPort), HostIp: bindIp }]
                 },
                 Binds: [
                     `${hostDataDir}:/data`,
@@ -198,12 +203,14 @@ export class DockerService {
             },
             ExposedPorts: {
                 [`${config.internalPort}/tcp`]: {},
-                [`${config.internalPort}/udp`]: {}
+                [`${config.internalPort}/udp`]: {},
+                [`27015/udp`]: {},
+                [`27020/tcp`]: {}
             }
         });
 
         await container.start();
-        logger.info(`Server ${config.serverId} started.`);
+        logger.info(`Server ${config.serverId} started. Ports: Game=${config.port}, Query=${queryPort}, RCON=${rconPort}`);
 
         // Force Install Hook (Safe for all images, runs silently)
         if (!isWindows) {
@@ -220,6 +227,8 @@ export class DockerService {
         }
 
         await this.manageFirewall(config.port, 'allow');
+        await this.manageFirewall(queryPort, 'allow');
+        await this.manageFirewall(rconPort, 'allow');
 
         return { id: container.id };
     } catch (error) {
@@ -235,8 +244,11 @@ export class DockerService {
           const portBindings = info.HostConfig.PortBindings;
           if (portBindings) {
               for (const key in portBindings) {
-                  const port = parseInt(portBindings[key][0].HostPort);
-                  if (port) await this.manageFirewall(port, 'delete allow');
+                  const hostPorts = portBindings[key];
+                  if (hostPorts && hostPorts.length > 0) {
+                      const port = parseInt(hostPorts[0].HostPort);
+                      if (port) await this.manageFirewall(port, 'delete allow');
+                  }
               }
           }
           await container.stop();

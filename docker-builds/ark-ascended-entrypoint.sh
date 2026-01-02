@@ -12,7 +12,7 @@ cat << 'EOF' > /tmp/ark_sync.txt
 @sSteamCmdForcePlatformType windows
 force_install_dir /data
 login anonymous
-app_set_config 2430930 modbranch public
+app_info_update 1
 app_update 2430930 validate
 quit
 EOF
