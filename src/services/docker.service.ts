@@ -272,24 +272,44 @@ export class DockerService {
     }
   }
 
-  async stopContainer(containerId: string) {
+  async stopContainer(containerId: string, purge: boolean = false) {
       try {
           const container = this.docker.getContainer(containerId);
-          const info = await container.inspect();
-          const portBindings = info.HostConfig.PortBindings;
-          if (portBindings) {
-              for (const key in portBindings) {
-                  const hostPorts = portBindings[key];
-                  if (hostPorts && hostPorts.length > 0) {
-                      const port = parseInt(hostPorts[0].HostPort);
-                      if (port) await this.manageFirewall(port, 'delete allow');
+          
+          if (purge) {
+              logger.info(`Container ${containerId}: PURGING (Stop + Remove)...`);
+              const info = await container.inspect();
+              const portBindings = info.HostConfig.PortBindings;
+              if (portBindings) {
+                  for (const key in portBindings) {
+                      const hostPorts = portBindings[key];
+                      if (hostPorts && hostPorts.length > 0) {
+                          const port = parseInt(hostPorts[0].HostPort);
+                          if (port) await this.manageFirewall(port, 'delete allow');
+                      }
                   }
               }
+              await container.stop().catch(() => {});
+              await container.remove().catch(() => {});
+              logger.info(`Container ${containerId} purged.`);
+              return;
           }
-          await container.stop();
-          logger.info(`Container ${containerId} stopped.`);
+
+          logger.info(`Container ${containerId}: Soft-stopping game process...`);
+          
+          // Send SIGTERM to the runner/game process inside
+          // This keeps the container ALIVE but stops the game.
+          try {
+              await this.execCommand(containerId, ['pkill', '-15', '-f', 'entrypoint.sh']);
+              await this.execCommand(containerId, ['pkill', '-15', '-f', 'ShooterGame']);
+              await this.execCommand(containerId, ['pkill', '-15', '-f', 'Minecraft']);
+          } catch (e) {
+              logger.warn(`Soft-stop signals sent, some may have failed if processes were already dead.`);
+          }
+
+          logger.info(`Container ${containerId} game processes signaled to stop. Container remains UP.`);
       } catch (error) {
-          logger.error(`Failed to stop container ${containerId}`, error);
+          logger.error(`Failed to stop/purge container ${containerId}`, error);
           throw error;
       }
   }

@@ -92,7 +92,10 @@ export class CommandPollerService {
           break;
 
         case 'STOP_SERVER':
-          await this.dockerService.stopContainer(command.payload.containerId || command.payload.serverId);
+          await this.dockerService.stopContainer(
+              command.payload.containerId || command.payload.serverId,
+              command.payload.purge || false
+          );
           success = true;
           break;
 
