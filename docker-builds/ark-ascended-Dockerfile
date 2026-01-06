@@ -37,6 +37,9 @@ RUN dpkg --add-architecture i386 && \
     cabextract \
     dbus \
     winbind \
+    libncurses6:i386 \
+    libncurses6 \
+    libntlm0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create steam user
@@ -68,4 +71,6 @@ USER steam
 ENV PATH="/opt/wine-staging/bin:${PATH}"
 ENV GAME_COMMAND="bash /entrypoint.sh"
 ENV WINEDEBUG="-all"
+ENV WINEARCH="win64"
+ENV WINEPREFIX="/data/.wine"
 ENTRYPOINT ["node", "/runner.js"]

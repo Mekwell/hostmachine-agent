@@ -234,6 +234,7 @@ export class DockerService {
                 ],
                 Memory: config.memoryLimitMb * 1024 * 1024,
                 PidsLimit: 2000,
+                Dns: ['8.8.8.8', '1.1.1.1'], // Force Public DNS for VPN compatibility
             },
             ExposedPorts: {
                 [`${config.internalPort}/tcp`]: {},

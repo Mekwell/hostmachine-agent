@@ -38,19 +38,36 @@ RCON_PORT=${RCON_PORT:-27020}
 echo ">>> Starting ARK: Ascended (HostMachine ASA) via Wine Staging + Xvfb..."
 
 # Configure Wine environment
-export WINEPREFIX=/home/steam/.wine
+export WINEPREFIX=/data/.wine
 export WINEARCH=win64
 export WINEDEBUG=-all
 export WINEDLLOVERRIDES="mscoree,mshtml="
 export DISPLAY=:99
+
+# Ensure WINEPREFIX directory exists and has correct permissions
+mkdir -p "$WINEPREFIX"
+
+# --- REMEDIATION SCRIPT ---
+# Check if Wine is actually working. If kernel32.dll fails to load, the prefix is trash.
+if [ -f "$WINEPREFIX/system.reg" ]; then
+    echo ">>> Validating existing Wine prefix at $WINEPREFIX..."
+    # Use a quick wine command to check health
+    xvfb-run wine --version > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "!!! CRITICAL: Wine prefix appears broken (kernel32.dll error). WIPING..."
+        rm -rf "$WINEPREFIX"
+        rm -f "$WINEPREFIX/vcrun2022_installed"
+        mkdir -p "$WINEPREFIX"
+    fi
+fi
 
 echo ">>> Configuring Wine prefix..."
 
 # Cleanup old Xvfb locks
 rm -f /tmp/.X99-lock
 
-if [ ! -f "/home/steam/.wine/vcrun2022_installed" ]; then
-    echo ">>> First boot: Installing Visual C++ 2022 Runtime..."
+if [ ! -f "$WINEPREFIX/vcrun2022_installed" ]; then
+    echo ">>> First boot: Installing Visual C++ 2022 Runtime into persistent volume..."
     # Start Xvfb in background
     Xvfb :99 -screen 0 1024x768x16 &
     XVFB_PID=$!
@@ -58,6 +75,9 @@ if [ ! -f "/home/steam/.wine/vcrun2022_installed" ]; then
     
     # Initialize prefix first
     wineboot --init
+    # Wait for wineboot to finish
+    sleep 5
+    
     # Install VC++ 2022
     winetricks -q -f vcrun2022
     
@@ -65,10 +85,10 @@ if [ ! -f "/home/steam/.wine/vcrun2022_installed" ]; then
     kill $XVFB_PID
     rm -f /tmp/.X99-lock
     
-    touch "/home/steam/.wine/vcrun2022_installed"
-    echo ">>> Visual C++ 2022 installed."
+    touch "$WINEPREFIX/vcrun2022_installed"
+    echo ">>> Visual C++ 2022 installed and persisted."
 else
-    echo ">>> Visual C++ 2022 already installed."
+    echo ">>> Visual C++ 2022 already found in persistent volume."
 fi
 
 # Final launch with Xvfb wrapper
