@@ -200,6 +200,9 @@ export class DockerService {
         const bindIp = config.bindIp || '0.0.0.0';
         const jvmArgs = this.preflight.calculateJvmArgs(config.mods?.length || 0, config.memoryLimitMb);
         
+        // Extract CPU Pinning config if present
+        const cpuSet = config.env.find(e => e.startsWith('CPU_SET='))?.split('=')[1];
+
         const finalEnv = [
             ...config.env,
             `SERVER_ID=${config.serverId}`,
@@ -233,6 +236,7 @@ export class DockerService {
                     `${hostDataDir}:/home/linuxgsm/serverfiles`
                 ],
                 Memory: config.memoryLimitMb * 1024 * 1024,
+                CpusetCpus: cpuSet, // Apply CPU Pinning
                 PidsLimit: 8000, // Increased from 2000 for heavy UE5/Wine games
                 Ulimits: [
                     { Name: 'nofile', Soft: 100000, Hard: 100000 }
