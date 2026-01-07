@@ -121,8 +121,70 @@ export class DockerService {
     mods?: any[];
     bindIp?: string;
     forceRecreate?: boolean;
+    installScript?: string;
+    installContainerImage?: string;
+    installEntrypoint?: string;
+    startupCommand?: string;
   }) {
     logger.info(`Creating Game Server ${config.serverId} on port ${config.port} (Bind: ${config.bindIp || '0.0.0.0'})`);
+
+    const hostDataDir = path.join(this.SERVERS_ROOT, config.serverId, 'data');
+    if (!fs.existsSync(hostDataDir)) {
+        fs.mkdirSync(hostDataDir, { recursive: true });
+        if (!isWindows) {
+            await execAsync(`chmod -R 777 ${hostDataDir}`); 
+        }
+    }
+
+    // --- INSTALLATION PHASE ---
+    const installedMarker = path.join(hostDataDir, '.installed');
+    if (config.installScript && !fs.existsSync(installedMarker)) {
+        logger.info(`[Install] Starting installation for ${config.serverId}...`);
+        
+        const installImage = config.installContainerImage || 'ghcr.io/pterodactyl/installers:debian';
+        await this.pullImage(installImage);
+
+        // Parse Install Script Variables
+        let script = config.installScript;
+        config.env.forEach(e => {
+            const [k, v] = e.split('=');
+            script = script.replace(new RegExp(`{{${k}}}`, 'g'), v);
+        });
+        script = script.replace(/{{SERVER_ID}}/g, config.serverId);
+
+        const installContainerName = `${config.serverId}_install`;
+        
+        // Remove stale install container if exists
+        try {
+            const old = this.docker.getContainer(installContainerName);
+            await old.remove({ force: true });
+        } catch (e) {}
+
+        const installContainer = await this.docker.createContainer({
+            Image: installImage,
+            name: installContainerName,
+            Entrypoint: [config.installEntrypoint || '/bin/bash', '-c', script],
+            HostConfig: {
+                Binds: [`${hostDataDir}:/mnt/server`],
+                AutoRemove: true
+            },
+            Env: config.env
+        });
+
+        await installContainer.start();
+        
+        // Stream logs
+        const stream = await installContainer.logs({ follow: true, stdout: true, stderr: true });
+        stream.on('data', chunk => logger.debug(`[Install-${config.serverId}] ${chunk.toString().trim()}`));
+
+        const result = await installContainer.wait();
+        if (result.StatusCode !== 0) {
+            throw new Error(`Installation failed with code ${result.StatusCode}`);
+        }
+
+        fs.writeFileSync(installedMarker, 'installed');
+        logger.info(`[Install] Installation complete for ${config.serverId}`);
+    }
 
     try {
         const image = this.docker.getImage(config.image);
@@ -136,14 +198,8 @@ export class DockerService {
         }
     }
 
-    const hostDataDir = path.join(this.SERVERS_ROOT, config.serverId, 'data');
-    if (!fs.existsSync(hostDataDir)) {
-        fs.mkdirSync(hostDataDir, { recursive: true });
-        if (!isWindows) {
-            await execAsync(`chmod -R 777 ${hostDataDir}`); 
-        }
-        
-        // Trigger Preload if available
+    // Trigger Preload if available (Legacy Support)
+    if (!config.installScript) {
         const gameId = config.image.split(':').shift()?.split('/').pop()?.replace('game-', '');
         if (gameId) {
             await this.preseedServerFiles(gameId, hostDataDir);
@@ -212,10 +268,28 @@ export class DockerService {
         const queryPort = config.port + 1;
         const rconPort = config.port + 2;
 
+        // Construct Entrypoint/Cmd based on Startup Command
+        let entrypoint = undefined;
+        let cmd = undefined;
+
+        if (config.startupCommand) {
+            let startup = config.startupCommand;
+            config.env.forEach(e => {
+                const [k, v] = e.split('=');
+                startup = startup.replace(new RegExp(`{{${k}}}`, 'g'), v);
+            });
+            startup = startup.replace(/{{SERVER_ID}}/g, config.serverId);
+            
+            // Pterodactyl images usually expect the command to be passed to shell or direct
+            // We'll wrap in shell to support env vars and chaining
+            entrypoint = ['/bin/bash', '-c', startup];
+        }
+
         const container = await this.docker.createContainer({
             Image: config.image,
             name: config.serverId,
             Env: finalEnv,
+            Entrypoint: entrypoint,
             Healthcheck: {
                 Test: ["CMD-SHELL", "ls /data || exit 1"],
                 Interval: 60000000000, // 60s
@@ -232,8 +306,9 @@ export class DockerService {
                 },
                 Binds: [
                     `${hostDataDir}:/data`,
-                    `${hostDataDir}:/home/container`,
-                    `${hostDataDir}:/home/linuxgsm/serverfiles`
+                    `${hostDataDir}:/home/container`, // Standard Pterodactyl Path
+                    `${hostDataDir}:/mnt/server`, // Standard Install Path
+                    `${hostDataDir}:/home/linuxgsm/serverfiles` // Legacy
                 ],
                 Memory: config.memoryLimitMb * 1024 * 1024,
                 CpusetCpus: cpuSet, // Apply CPU Pinning
