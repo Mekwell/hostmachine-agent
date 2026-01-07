@@ -233,7 +233,10 @@ export class DockerService {
                     `${hostDataDir}:/home/linuxgsm/serverfiles`
                 ],
                 Memory: config.memoryLimitMb * 1024 * 1024,
-                PidsLimit: 2000,
+                PidsLimit: 8000, // Increased from 2000 for heavy UE5/Wine games
+                Ulimits: [
+                    { Name: 'nofile', Soft: 100000, Hard: 100000 }
+                ],
                 Dns: ['8.8.8.8', '1.1.1.1'], // Force Public DNS for VPN compatibility
             },
             ExposedPorts: {

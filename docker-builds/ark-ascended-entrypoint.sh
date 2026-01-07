@@ -37,12 +37,25 @@ RCON_PORT=${RCON_PORT:-27020}
 # Launch using wine via Xvfb
 echo ">>> Starting ARK: Ascended (HostMachine ASA) via Wine Staging + Xvfb..."
 
+# CLEANUP STALE PROCESSES (Prevent Socket/Lock errors)
+pkill -9 Xvfb > /dev/null 2>&1
+pkill -9 ArkAscendedServ > /dev/null 2>&1
+
 # Configure Wine environment
 export WINEPREFIX=/data/.wine
 export WINEARCH=win64
 export WINEDEBUG=-all
 export WINEDLLOVERRIDES="mscoree,mshtml="
 export DISPLAY=:99
+export XDG_RUNTIME_DIR=/tmp/runtime-steam
+mkdir -p "$XDG_RUNTIME_DIR"
+chmod 700 "$XDG_RUNTIME_DIR"
+
+# PERFORMANCE OPTIMIZATIONS
+export WINEESYNC=1
+export WINEFSYNC=1
+export WINELoader=1
+export WINE_LARGE_ADDRESS_AWARE=1
 
 # Ensure WINEPREFIX directory exists and has correct permissions
 mkdir -p "$WINEPREFIX"
@@ -51,8 +64,9 @@ mkdir -p "$WINEPREFIX"
 # Check if Wine is actually working. If kernel32.dll fails to load, the prefix is trash.
 if [ -f "$WINEPREFIX/system.reg" ]; then
     echo ">>> Validating existing Wine prefix at $WINEPREFIX..."
-    # Use a quick wine command to check health
-    xvfb-run wine --version > /dev/null 2>&1
+    # Use wine --version WITHOUT Xvfb first. It should work headless for version check.
+    # If it fails, the prefix is truly broken (not just an Xvfb issue).
+    wine --version > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         echo "!!! CRITICAL: Wine prefix appears broken (kernel32.dll error). WIPING..."
         rm -rf "$WINEPREFIX"
@@ -63,27 +77,16 @@ fi
 
 echo ">>> Configuring Wine prefix..."
 
-# Cleanup old Xvfb locks
-rm -f /tmp/.X99-lock
-
 if [ ! -f "$WINEPREFIX/vcrun2022_installed" ]; then
     echo ">>> First boot: Installing Visual C++ 2022 Runtime into persistent volume..."
-    # Start Xvfb in background
-    Xvfb :99 -screen 0 1024x768x16 &
-    XVFB_PID=$!
-    sleep 2
     
-    # Initialize prefix first
-    wineboot --init
+    # Initialize prefix first using xvfb-run to avoid conflict
+    xvfb-run -a wineboot --init
     # Wait for wineboot to finish
     sleep 5
     
-    # Install VC++ 2022
-    winetricks -q -f vcrun2022
-    
-    # Kill Xvfb
-    kill $XVFB_PID
-    rm -f /tmp/.X99-lock
+    # Install VC++ 2022 using xvfb-run
+    xvfb-run -a winetricks -q -f vcrun2022
     
     touch "$WINEPREFIX/vcrun2022_installed"
     echo ">>> Visual C++ 2022 installed and persisted."

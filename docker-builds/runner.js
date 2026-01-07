@@ -12222,6 +12222,10 @@ const startGame = () => {
     console.log(`[Runner] Started game process: ${GAME_COMMAND}`);
     gameProcess.stdout.on('data', (data) => {
         const line = data.toString();
+        // --- FILTER NOISE ---
+        if (line.includes('GameAnalytics : Event queue: No events to send'))
+            return;
+        // -------------------
         process.stdout.write(line);
         parseLog(line);
         socket.emit('log-push', { serverId: SERVER_ID, data: line });
@@ -12231,11 +12235,12 @@ const startGame = () => {
         process.stderr.write(line);
         socket.emit('log-push', { serverId: SERVER_ID, data: line });
     });
-    gameProcess.on('close', (code) => {
-        console.log(`[Runner] Game process exited with code ${code}`);
-        socket.emit('log-push', { serverId: SERVER_ID, data: `[System] Server process exited (Code ${code})` });
-        if (!isStopping && code !== 0 && code !== 137) { // 137 is SIGKILL (OOM)
-            console.log('[Runner] Crash detected. Restarting in 10 seconds...');
+    gameProcess.on('close', (code, signal) => {
+        const exitMsg = signal ? `exited with signal ${signal}` : `exited with code ${code}`;
+        console.log(`[Runner] Game process ${exitMsg}`);
+        socket.emit('log-push', { serverId: SERVER_ID, data: `[System] Server process ${exitMsg}` });
+        if (!isStopping && code !== 0 && code !== 137 && signal !== 'SIGTERM') {
+            console.log(`[Runner] Crash or termination detected (${signal || code}). Restarting in 10 seconds...`);
             socket.emit('log-push', { serverId: SERVER_ID, data: `[System] Crash detected. Restarting in 10s...` });
             setTimeout(startGame, 10000);
         }
@@ -12318,6 +12323,25 @@ const parseLog = (line) => {
     }
 };
 // 4. Input Streaming (Controller -> Game)
+socket.on('stop-server', () => {
+    console.log('[Runner] Remote STOP request received.');
+    isStopping = true;
+    if (gameProcess) {
+        gameProcess.kill('SIGTERM');
+        socket.emit('log-push', { serverId: SERVER_ID, data: '[System] Server STOPPED by administrator.' });
+    }
+});
+socket.on('start-server', () => {
+    console.log('[Runner] Remote START request received.');
+    isStopping = false;
+    if (!gameProcess || gameProcess.killed) {
+        startGame();
+        socket.emit('log-push', { serverId: SERVER_ID, data: '[System] Server STARTED by administrator.' });
+    }
+    else {
+        console.log('[Runner] Server already running.');
+    }
+});
 socket.on('command', async (command) => {
     console.log(`[Runner] Received command: ${command}`);
     // Prefer RCON if available
