@@ -28,11 +28,19 @@ echo ">>> Launching via Wine..."
 # Basic params
 MAP=${MAP:-"TheIsland_WP"}
 SERVER_NAME=${SERVER_NAME:-"HostMachine ASA Server"}
+SERVER_PASSWORD=${SERVER_PASSWORD:-""}
 ADMIN_PASSWORD=${ADMIN_PASSWORD:-"admin123"}
 MAX_PLAYERS=${MAX_PLAYERS:-70}
 GAME_PORT=${SERVER_PORT:-7777}
 QUERY_PORT=${QUERY_PORT:-27015}
 RCON_PORT=${RCON_PORT:-27020}
+
+# Construct Launch Arguments
+LAUNCH_ARGS="$MAP?listen?SessionName=$SERVER_NAME?ServerAdminPassword=$ADMIN_PASSWORD?Port=$GAME_PORT?QueryPort=$QUERY_PORT?RCONPort=$RCON_PORT?RCONEnabled=True"
+
+if [ -n "$SERVER_PASSWORD" ]; then
+    LAUNCH_ARGS="$LAUNCH_ARGS?ServerPassword=$SERVER_PASSWORD"
+fi
 
 # Launch using wine via Xvfb
 echo ">>> Starting ARK: Ascended (HostMachine ASA) via Wine Staging + Xvfb..."
@@ -96,7 +104,7 @@ fi
 
 # Final launch with Xvfb wrapper
 xvfb-run --auto-servernum --server-args='-screen 0 1024x768x16' \
-/usr/bin/env WINEDEBUG=-all /opt/wine-staging/bin/wine "$BIN_PATH" "$MAP?listen?SessionName=$SERVER_NAME?ServerPassword=$ADMIN_PASSWORD?ServerAdminPassword=$ADMIN_PASSWORD?Port=$GAME_PORT?QueryPort=$QUERY_PORT?RCONPort=$RCON_PORT?RCONEnabled=True" \
+/usr/bin/env WINEDEBUG=-all /opt/wine-staging/bin/wine "$BIN_PATH" "$LAUNCH_ARGS" \
     -WinLiveMaxPlayers=$MAX_PLAYERS \
     -NoBattlEye \
     -server \
