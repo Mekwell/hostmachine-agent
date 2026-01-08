@@ -9,7 +9,7 @@ dotenv.config(); // Load .env file
 const CREDENTIALS_PATH = path.resolve(process.cwd(), 'credentials.json');
 
 const configSchema = z.object({
-  CONTROLLER_URL: z.string().url().default('http://localhost:3000'), // Default to local for dev
+  CONTROLLER_URL: z.string().url().default('http://192.168.30.20:3000'), // Production Controller IP
   NODE_NAME: z.string().optional(),
   ENROLLMENT_TOKEN: z.string().default('valid-token'), // Hardcoded for prototype
   VPN_IP: z.string().ip().optional(),

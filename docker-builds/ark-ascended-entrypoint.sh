@@ -12,8 +12,25 @@ if [ -f "$BIN_PATH" ] && [ "${ALWAYS_UPDATE}" != "true" ]; then
     echo ">>> ASA Binary found. Skipping SteamCMD sync for faster boot."
 else
     echo ">>> Synchronizing ARK: Ascended via SteamCMD (App 2430930)..."
-    # Direct execution
-    $STEAMCMD +@sSteamCmdForcePlatformType windows +force_install_dir /data +login anonymous +app_update 2430930 validate +quit
+    
+    # Retry loop for SteamCMD
+    SUCCESS=0
+    for i in {1..3}; do
+        echo ">>> Sync Attempt $i..."
+        $STEAMCMD +@sSteamCmdForcePlatformType windows +force_install_dir /data +login anonymous +app_update 2430930 validate +quit
+        if [ -f "$BIN_PATH" ]; then
+            SUCCESS=1
+            break
+        fi
+        echo ">>> Attempt $i failed. Cleaning cache and retrying..."
+        rm -rf /home/steam/Steam/appcache /home/steam/Steam/depotcache
+        sleep 5
+    done
+
+    if [ $SUCCESS -eq 0 ]; then
+        echo "!!! CRITICAL: SteamCMD failed to synchronize ARK: Ascended after 3 attempts !!!"
+        exit 1
+    fi
 fi
 
 if [ ! -f "$BIN_PATH" ]; then
